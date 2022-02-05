@@ -145,6 +145,9 @@ export class PaintFrameState {
 
   public defaultAiImage:HTMLImageElement[]|null = null;
   public loadingAi = false;
+
+  public lastCanvasWidth = 0;
+  public lastCanvasHeight = 0;
 }
 
 export function doPaintFrameStateUpdates(rootResourceUrl:string, tmNow:number, dtSeconds:number, raceState:RaceState, paintState:PaintFrameState) {
@@ -257,6 +260,17 @@ export function paintCanvasFrame(canvas:HTMLCanvasElement, raceState:RaceState, 
   if(!ctx) {
     return;
   }
+
+  if(paintState.lastCanvasHeight && 
+     paintState.lastCanvasWidth && 
+     (paintState.lastCanvasHeight !== canvas.clientHeight ||
+      paintState.lastCanvasWidth !== canvas.clientWidth)) {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  }
+  paintState.lastCanvasWidth = canvas.clientWidth;
+  paintState.lastCanvasHeight = canvas.clientHeight;
+
   const w = canvas.width;
   const h = canvas.height;
 
