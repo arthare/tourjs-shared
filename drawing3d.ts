@@ -141,8 +141,10 @@ export class Drawer3D extends DrawingBase {
   camera:THREE.Camera|null = null;
   renderer:THREE.WebGLRenderer|null = null;
 
-
-  sunlight:THREE.Light|null = null;
+  lights = {
+    sunlight:null as THREE.Light|null,
+    ambient:null as THREE.AmbientLight|null,
+  };
 
   myRaceState:RaceState|null = null;
   myCanvas:HTMLCanvasElement|null = null;
@@ -160,19 +162,22 @@ export class Drawer3D extends DrawingBase {
       //this.scene.add( light );
       const map = raceState.getMap();
 
-      this.sunlight = new THREE.PointLight(0xffffff, 1, 0);
+      this.lights.ambient = new THREE.AmbientLight(0x808080);
+      this.scene.add(this.lights.ambient);
+
+      this.lights.sunlight = new THREE.PointLight(0xffffff, 25, 0);
       //this.sunlight.lookAt(0,0,0);
       const bounds = map.getBounds();
-      this.sunlight.position.x = map.getLength() / 2;
-      this.sunlight.position.y = (bounds.maxElev) + 100;
-      this.sunlight.position.z = Planes.RoadNear
-      this.sunlight.castShadow = true;
-      this.sunlight.shadow.mapSize.width = 512; // default
-      this.sunlight.shadow.mapSize.height = 512; // default
-      this.sunlight.shadow.camera.near = 0.5; // default
-      this.sunlight.shadow.camera.far = 500; // default
+      this.lights.sunlight.position.x = map.getLength() / 2;
+      this.lights.sunlight.position.y = (bounds.maxElev) + 100;
+      this.lights.sunlight.position.z = Planes.CameraFast
+      this.lights.sunlight.castShadow = true;
+      this.lights.sunlight.shadow.mapSize.width = Math.max(window.innerWidth, window.innerHeight); // default
+      this.lights.sunlight.shadow.mapSize.height = Math.max(window.innerWidth, window.innerHeight); // default
+      this.lights.sunlight.shadow.camera.near = this.lights.sunlight.position.z - Planes.RacingLane; // default
+      this.lights.sunlight.shadow.camera.far = map.getLength(); // this appears to control the radius that the LIGHT functions as well as shadows.  so it needs to be the entire radius that we want the light to do
 
-      this.scene.add(this.sunlight);
+      this.scene.add(this.lights.sunlight);
 
       this.renderer = new THREE.WebGLRenderer({ canvas });
       this.renderer.shadowMap.enabled = true;
@@ -189,12 +194,16 @@ export class Drawer3D extends DrawingBase {
 
   }
   private _trackLocalUser(tmNow:number) {
-    if(this.myRaceState && this.camera && this.sunlight) {
+    if(this.myRaceState && this.camera && this.lights.sunlight) {
       const localUser = this.myRaceState.getLocalUser();
       if(localUser) {
-          
-        this.sunlight.position.x = localUser.getDistance() - 5;
-        this.sunlight.position.y = localUser.getLastElevation() + 2;
+        const s = tmNow / 1000;
+
+        // we want the shadow-casting light to change where the shadow gets cast depending on how far they are along in the race
+        const pct = localUser.getDistance() / this.myRaceState.getMap().getLength();
+        const shiftage = 60;
+        this.lights.sunlight.position.x = localUser.getDistance() - shiftage / 2 + shiftage*pct;
+        this.lights.sunlight.position.y = localUser.getLastElevation() + 2;
         //this.sunlight.position.z = this.myRaceState.getMap().getLength() / 2;
         //this.sunlight.lookAt(localUser.getDistance(), localUser.getLastElevation(), Planes.RacingLane);
         
