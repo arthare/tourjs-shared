@@ -57,13 +57,18 @@ function buildRoad(raceState:RaceState):THREE.Mesh {
   const floatsPerPoint = 3;
   const pointsPerSegment = 6;
   const verts = new Float32Array(nPoints*floatsPerPoint*pointsPerSegment);
-
+  const norms = new Float32Array(verts.length);
+  const colors = new Float32Array(verts.length);
   let ixBase = 0;
   
   const farZ = Planes.RoadFar;
   const nearZ = Planes.RoadNear;
 
+  let ix = 0;
   for(var dist = startDist; dist < endDist; dist += stepSize) {
+    ix++;
+    const leftIx = ix;
+    const rightIx = ix+1;
     const leftX = dist;
     const rightX = dist+stepSize;
 
@@ -71,39 +76,63 @@ function buildRoad(raceState:RaceState):THREE.Mesh {
       verts[ixBase+0] = leftX;
       verts[ixBase+1] = map.getElevationAtDistance(leftX);
       verts[ixBase+2] = nearZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (leftIx&1); colors[ixBase+1] = (leftIx&2)>>1; colors[ixBase+2] = (leftIx&4)>>2;
+      ixBase+=3;
       
-      verts[ixBase+3] = rightX;
-      verts[ixBase+4] = map.getElevationAtDistance(rightX);
-      verts[ixBase+5] = nearZ;
+      verts[ixBase+0] = rightX;
+      verts[ixBase+1] = map.getElevationAtDistance(rightX);
+      verts[ixBase+2] = nearZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (rightIx&1); colors[ixBase+1] = (rightIx&2)>>1; colors[ixBase+2] = (rightIx&4)>>2;
+      ixBase+=3;
 
-      verts[ixBase+6] = leftX;
-      verts[ixBase+7] = map.getElevationAtDistance(leftX);
-      verts[ixBase+8] = farZ;
+      verts[ixBase+0] = leftX;
+      verts[ixBase+1] = map.getElevationAtDistance(leftX);
+      verts[ixBase+2] = farZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (leftIx&1); colors[ixBase+1] = (leftIx&2)>>1; colors[ixBase+2] = (leftIx&4)>>2;
+      ixBase+=3;
 
     }
-    ixBase += 3*floatsPerPoint;
     
     { // triangle based on far side of road, going far-left, near-right, far-right
       verts[ixBase+0] = leftX;
       verts[ixBase+1] = map.getElevationAtDistance(leftX);
       verts[ixBase+2] = farZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (leftIx&1); colors[ixBase+1] = (leftIx&2)>>1; colors[ixBase+2] = (leftIx&4)>>2;
+      ixBase+=3;
       
-      verts[ixBase+3] = rightX;
-      verts[ixBase+4] = map.getElevationAtDistance(rightX);
-      verts[ixBase+5] = nearZ;
+      verts[ixBase+0] = rightX;
+      verts[ixBase+1] = map.getElevationAtDistance(rightX);
+      verts[ixBase+2] = nearZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (rightIx&1); colors[ixBase+1] = (rightIx&2)>>1; colors[ixBase+2] = (rightIx&4)>>2;
+      ixBase+=3;
 
-      verts[ixBase+6] = rightX;
-      verts[ixBase+7] = map.getElevationAtDistance(rightX);
-      verts[ixBase+8] = farZ;
+      verts[ixBase+0] = rightX;
+      verts[ixBase+1] = map.getElevationAtDistance(rightX);
+      verts[ixBase+2] = farZ;
+      norms[ixBase+0] = 0; norms[ixBase+1] = 1; norms[ixBase+2] = 0;
+      colors[ixBase+0] = (rightIx&1); colors[ixBase+1] = (rightIx&2)>>1; colors[ixBase+2] = (rightIx&4)>>2;
+      ixBase+=3;
 
     }
-    ixBase += 3*floatsPerPoint;
   }
   geometry.setAttribute( 'position', new THREE.BufferAttribute( verts, 3 ) );
-  const material = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+  geometry.setAttribute( 'normal', new THREE.BufferAttribute( norms, 3 ) );
+  geometry.setAttribute( 'color', new THREE.BufferAttribute( colors, 3 ) );
+  const material = new THREE.MeshPhongMaterial( {vertexColors:true} );
   const mesh = new THREE.Mesh( geometry, material );
   mesh.receiveShadow = true;
   return mesh;
+
+  /*const planeGeometry = new THREE.PlaneGeometry( 20, 20, 32, 32 );
+  const planeMaterial = new THREE.MeshStandardMaterial( { color: 0x00ff00 } )
+  const plane = new THREE.Mesh( planeGeometry, planeMaterial );
+  plane.receiveShadow = true;
+  return plane;*/
 }
 
 export class Drawer3D extends DrawingBase {
@@ -132,20 +161,22 @@ export class Drawer3D extends DrawingBase {
       const map = raceState.getMap();
 
       this.sunlight = new THREE.PointLight(0xffffff, 1, 0);
-      this.sunlight.lookAt(0,0,0);
+      //this.sunlight.lookAt(0,0,0);
+      const bounds = map.getBounds();
       this.sunlight.position.x = map.getLength() / 2;
-      this.sunlight.position.y = map.getBounds().maxElev;
-      this.sunlight.position.z = map.getLength() / 2;
+      this.sunlight.position.y = (bounds.maxElev) + 100;
+      this.sunlight.position.z = Planes.RoadNear
+      this.sunlight.castShadow = true;
       this.sunlight.shadow.mapSize.width = 512; // default
       this.sunlight.shadow.mapSize.height = 512; // default
-      this.sunlight.shadow.camera = this.camera;
+      this.sunlight.shadow.camera.near = 0.5; // default
+      this.sunlight.shadow.camera.far = 500; // default
 
-      this.sunlight.castShadow = true;
       this.scene.add(this.sunlight);
 
       this.renderer = new THREE.WebGLRenderer({ canvas });
-      //this.renderer.shadowMap.enabled = true;
-      //this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
       
       // let's build the road
       const road = buildRoad(raceState);
@@ -158,12 +189,18 @@ export class Drawer3D extends DrawingBase {
 
   }
   private _trackLocalUser(tmNow:number) {
-    if(this.myRaceState && this.camera) {
+    if(this.myRaceState && this.camera && this.sunlight) {
       const localUser = this.myRaceState.getLocalUser();
       if(localUser) {
-        this.camera.position.x = localUser.getDistance();
-        this.camera.position.y = localUser.getLastElevation() + 8 + 0.25*Math.sin(tmNow / 500);
-        this.camera.position.z = 40;
+          
+        this.sunlight.position.x = localUser.getDistance() - 5;
+        this.sunlight.position.y = localUser.getLastElevation() + 2;
+        //this.sunlight.position.z = this.myRaceState.getMap().getLength() / 2;
+        //this.sunlight.lookAt(localUser.getDistance(), localUser.getLastElevation(), Planes.RacingLane);
+        
+        this.camera.position.x = localUser.getDistance() + 10;
+        this.camera.position.y = localUser.getLastElevation() + 80 + 0.25*Math.sin(tmNow / 500);
+        this.camera.position.z = Planes.CameraFast;
 
         this.camera.lookAt(localUser.getDistance(), localUser.getLastElevation(), 0);
       }
