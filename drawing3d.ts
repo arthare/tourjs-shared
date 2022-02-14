@@ -5,6 +5,8 @@ import { RaceState } from "./RaceState";
 import THREE, { Plane } from 'three';
 import { UserInterface } from "./User";
 import { RideMap } from "./RideMap";
+import { defaultThemeConfig } from "./drawing-constants";
+import { ThemeConfig, ConfiggedDecoration, randRange, Layer} from './DecorationFactory';
 
 enum Planes {
   Background = -40,
@@ -35,7 +37,7 @@ class DisplayUser3D extends DisplayUser {
     this.geometry = new THREE.BoxGeometry(0.1,2,2);
     this.material = new THREE.MeshPhongMaterial( { 
       color: 0x00ff00,
-      opacity: 0.8,
+      opacity: 1,
     } );
     this.cube = new THREE.Mesh( this.geometry, this.material );
     this.cube.castShadow = true;
@@ -227,6 +229,110 @@ function buildRoad(raceState:RaceState):THREE.Mesh[] {
   return [roadMesh, farGrassMesh, skyMesh, nearGrassMesh]
 }
 
+function makeSimplePlaneGeometry(width:number, height:number):THREE.BufferGeometry {
+  
+  const geometry = new THREE.BufferGeometry();
+  // create a simple square shape. We duplicate the top left and bottom right
+  // vertices because each vertex needs to appear once per triangle.
+
+  const verts = new Float32Array(18);
+  const uv = new Float32Array(12);
+
+  let ixVert = 0;
+  let ixUv = 0;
+  verts[ixVert++] = -width / 2; // top left (-,-)
+  verts[ixVert++] = -height / 2;
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 0;
+  uv[ixUv++] = 0;
+  
+  verts[ixVert++] = width / 2; // top right (+,-)
+  verts[ixVert++] = -height / 2;
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 1;
+  uv[ixUv++] = 0;
+
+  verts[ixVert++] = -width / 2; // bottom left (-,+)
+  verts[ixVert++] = height / 2;
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 0;
+  uv[ixUv++] = 1;
+  
+  
+  verts[ixVert++] = width / 2; // top right (+,-)
+  verts[ixVert++] = -height / 2
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 1;
+  uv[ixUv++] = 0;
+  
+  verts[ixVert++] = width / 2; // bottom right (+,+)
+  verts[ixVert++] = height / 2;
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 1;
+  uv[ixUv++] = 1;
+
+  verts[ixVert++] = -width / 2; // bottom left
+  verts[ixVert++] = height / 2;
+  verts[ixVert++] = 0;
+  uv[ixUv++] = 0;
+  uv[ixUv++] = 1;
+  
+  
+
+  geometry.setAttribute( 'position', new THREE.BufferAttribute( verts, 3 ) );
+  geometry.setAttribute( 'uv', new THREE.BufferAttribute( uv, 2 ) );
+  return geometry;
+
+}
+
+const texHash:{[key:string]:THREE.Texture} = {};
+
+function makeTexturedSceneryCube(dist:number, scenery:ConfiggedDecoration, map:RideMap):THREE.Mesh {
+
+  
+  const ixImage = Math.floor(scenery.imageUrl.length * Math.random());
+  const imgUrl = `/${scenery.imageUrl[ixImage]}`;
+  let tex;
+  if(texHash[imgUrl]) {
+    tex = texHash[imgUrl];
+  } else {
+    tex = texHash[imgUrl] = new THREE.TextureLoader().load(imgUrl);
+  }
+
+  
+  const width = randRange(scenery.minDimensions.x, scenery.maxDimensions.x);
+  const height = randRange(scenery.minDimensions.y, scenery.maxDimensions.y);
+
+  const geometry = new THREE.BoxGeometry(0, height, width);
+  const material = new THREE.MeshStandardMaterial( { 
+    //color: 0xff0000,
+    transparent: true,
+    map: tex,
+  } );
+  material.map = tex;
+  
+  const cube = new THREE.Mesh( geometry, material );
+  cube.customDepthMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.RGBADepthPacking,
+    map: tex,
+    alphaTest: 0.5,
+  })
+
+  const elevOfItem = map.getElevationAtDistance(dist) + randRange(scenery.minAltitude, scenery.maxAltitude);
+
+  cube.position.x = dist + Math.random();
+  cube.position.y = VIS_ELEV_SCALE * elevOfItem + height/2;
+  cube.position.z = randRange(Planes.RoadFar, Planes.Background);
+
+
+  const slopeAt = -map.getSlopeAtDistance(dist)*VIS_ELEV_SCALE;
+  const lookAt = new THREE.Vector3(cube.position.x + slopeAt, cube.position.y,cube.position.z)
+  
+  cube.lookAt(lookAt);
+  
+  return cube;
+}
+
 export class Drawer3D extends DrawingBase {
     
   scene:THREE.Scene|null = null
@@ -248,7 +354,7 @@ export class Drawer3D extends DrawingBase {
 
     if(raceState !== this.myRaceState || canvas !== this.myCanvas) {
       this.scene = new THREE.Scene();
-      this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+      this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, Planes.CameraClose - Planes.RoadNear, Planes.Background - Planes.CameraFast );
 
       //const light = new THREE.AmbientLight( 0x404040 ); // soft white light
       //this.scene.add( light );
@@ -257,7 +363,7 @@ export class Drawer3D extends DrawingBase {
       this.lights.ambient = new THREE.AmbientLight(0xc0c0c0);
       this.scene.add(this.lights.ambient);
 
-      this.lights.sunlight = new THREE.PointLight(0xffffff, 2.5, 0);
+      this.lights.sunlight = new THREE.PointLight(0xffffff, 1.5, 0);
       //this.sunlight.lookAt(0,0,0);
       const bounds = map.getBounds();
       this.lights.sunlight.position.x = map.getLength() / 2;
@@ -279,11 +385,35 @@ export class Drawer3D extends DrawingBase {
       const road = buildRoad(raceState);
       this.scene.add(...road);
 
+      // let's build scenery
+      const themeConfig = defaultThemeConfig;
+      this._populateScenery(map, themeConfig);
+
       this.myRaceState = raceState;
       this.myCanvas = canvas;
     }
 
 
+  }
+  private _populateScenery(map:RideMap, themeConfig:ThemeConfig) {
+    
+    const km = map.getLength() / 1000;
+
+    const nScenery = Math.floor(map.getLength() / 10);
+    const keys = [...themeConfig.decorationSpecs.keys()];
+    for(var sceneryKey of keys) {
+      // each scenery item has a "frequency per km", so let's make sure we put enough in our game
+      const scenery = themeConfig.decorationSpecs.get(sceneryKey);
+      if(scenery.layer === Layer.Underground) {
+        continue;
+      }
+
+      const nNeeded = km * scenery.frequencyPerKm;
+      for(var x = 0;x < nNeeded; x++) {
+        const dist = Math.random() * map.getLength();
+        this.scene?.add(makeTexturedSceneryCube(dist, scenery, map));
+      }
+    }
   }
   private _trackLocalUser(tmNow:number) {
     if(this.myRaceState && this.camera && this.lights.sunlight) {
@@ -297,8 +427,6 @@ export class Drawer3D extends DrawingBase {
         const shiftage = 60;
         this.lights.sunlight.position.x = localUser.getDistance() - shiftage / 2 + shiftage*pct;
         this.lights.sunlight.position.y = getVisElev(map, localUser.getDistance()) + Planes.CameraFast;
-        //this.sunlight.position.z = this.myRaceState.getMap().getLength() / 2;
-        //this.sunlight.lookAt(localUser.getDistance(), localUser.getLastElevation(), Planes.RacingLane);
         
         this.camera.position.x = localUser.getDistance() + 1;
         this.camera.position.y = getVisElev(map, localUser.getDistance()) + Planes.CameraFast/2;
@@ -312,11 +440,17 @@ export class Drawer3D extends DrawingBase {
   }
   paintCanvasFrame(canvas:HTMLCanvasElement, raceState:RaceState, timeMs:number, decorationState:DecorationState, dt:number, paintState:PaintFrameState):void {
 
+    /*if(canvas.width >= 1920) {
+      const ar = canvas.width / canvas.height;
+      canvas.width = 1920;
+      canvas.height = canvas.width / ar;
+    }*/
+
     const tmNow = new Date().getTime();
 
     this._build(canvas, raceState);
     this._trackLocalUser(tmNow);
-    
+
     const seconds = Math.sin(timeMs / 1000);
 
     if(this.camera && this.renderer && this.scene) {
