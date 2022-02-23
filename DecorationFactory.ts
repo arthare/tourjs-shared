@@ -6,6 +6,7 @@ export enum Layer {
   NearSky = "NearSky", // clouds, airplanes, birds
   NearRoadside = "NearRoadside", // shops, cheering crowds, mile markers
   Underground = "Underground", // grass tufts, dinosaur bones, hidden treasure
+  Space = "Space",
 }
 
 export class ConfiggedDecoration {
