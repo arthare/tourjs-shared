@@ -52,7 +52,7 @@ class DisplayUser3D extends DisplayUser {
   fastMaterial:THREE.MeshStandardMaterial;
   ar:number;
 
-  draftingMaterial:THREE.MeshStandardMaterial;
+  draftingMaterial:THREE.ShaderMaterial;
   draftingCube:THREE.Object3D;
   draftingGeo:THREE.BufferGeometry;
 
@@ -126,17 +126,68 @@ class DisplayUser3D extends DisplayUser {
         scene.add(this.name);
       }
     }
-    { // drafting indicator
-      this.draftingMaterial = new THREE.MeshStandardMaterial({
-        color: 0x8888ff,
-        transparent: true,
-        opacity: 0.5,
-        depthWrite: false,
+    { // drafting indicator// create the particle variables
+      const particleCount = 100;
+      const particleGeometry = new THREE.BufferGeometry();
+      
+      // now create the individual particles
+      let particleVerts:Float32Array = new Float32Array(particleCount*3);
+      let ixVert = 0;
+      for (var p = 0; p < particleCount; p++) {
+      
+        // create a particle with random
+        // position values, -250 -> 250
+        const pX = randRange(-2, 2);
+        const pY = randRange(-2, 2);
+        const pZ = randRange(-2, 2);
+      
+        // add it to the geometry
+        particleVerts[ixVert++] = pX;
+        particleVerts[ixVert++] = pY;
+        particleVerts[ixVert++] = pZ;
+      }
+      particleGeometry.setAttribute('position', new THREE.BufferAttribute( particleVerts, 3 ) );
+
+      const particleVertexCode = `attribute float size;
+                                  varying vec3 vColor;
+
+                                  void main() {
+
+                                    vColor = color;
+
+                                    vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+
+                                    gl_PointSize = 0.5;
+
+                                    gl_Position = projectionMatrix * mvPosition;
+
+                                  }`
+      const particleFragmentCode = `
+                                    uniform sampler2D pointTexture;
+
+                                    varying vec3 vColor;
+
+                                    void main() {
+
+                                      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+
+                                      gl_FragColor = gl_FragColor * texture2D( pointTexture, gl_PointCoord );
+
+                                    }
+      `;
+
+      const particleMaterial = new THREE.ShaderMaterial({
+        uniforms: {},
+        vertexShader: particleVertexCode,
+        fragmentShader: particleFragmentCode,
+        vertexColors: true,
       })
-      this.draftingGeo = new THREE.SphereBufferGeometry(2, 9, 9);
-      const draftingCubeMesh = new THREE.Mesh(this.draftingGeo, this.draftingMaterial);
+      const points = new THREE.Points(particleGeometry, particleMaterial);
+      // add it to the scene
+      this.draftingGeo = particleGeometry;
+      this.draftingMaterial = particleMaterial;
       this.draftingCube = new THREE.Object3D();
-      this.draftingCube.add(draftingCubeMesh);
+      this.draftingCube.add(points);
     }
 
 
@@ -174,24 +225,7 @@ class DisplayUser3D extends DisplayUser {
     }
     
     { // handling drafting graphics
-      const mixRate = 0.975;
-      if(this.myUser.hasDraftersThisCycle(tmNow)) {
-        const draftees = this.myUser.getDrafteeStats();
-        const closestDraftee = draftees.reduce((best, current) => {
-          return (!best || current.drafteeDist > best.drafteeDist) ? current : best;
-        });
-        const bestReductionOfDraftee = closestDraftee.drafteePctSaved;
-        const drafteeBehindAmount = dist - closestDraftee.drafteeDist;
-        
-        this.draftingMaterial.opacity = 0.5*(2*this.draftingMaterial.opacity * mixRate + (1-mixRate) * (1 - bestReductionOfDraftee));
-        this.draftingCube.scale.set(1,drafteeBehindAmount/4,1);
-        this.draftingCube.position.set(0,slopePercent < 0 ? drafteeBehindAmount/2 : -drafteeBehindAmount/2,-0.5);
-        
-        
-      } else {
-        this.draftingMaterial.opacity = 0.5*(2*this.draftingMaterial.opacity * mixRate + (1-mixRate) * (0));
-      }
-      
+
     }
     this.name.lookAt(this.camera.position);
     
