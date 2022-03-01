@@ -147,6 +147,11 @@ export enum JoulesUsedClass {
   LastHalf = 'last-half',
 }
 
+export interface DrafteeStat {
+  drafteeDist:number;
+  drafteePctSaved:number;
+}
+
 export interface UserInterface {
   getName(): string;
   getUserType(): number;
@@ -172,7 +177,8 @@ export interface UserInterface {
   getBigImageMd5(): string | null;
   getLastHandicapChangeTime(): number;
   physicsTick(tmNow: number, map: RideMap, otherUsers: UserInterface[]): void;
-  notifyDrafteeThisCycle(tmNow: number, id: number): void;
+  notifyDrafteeThisCycle(tmNow: number, id: number, stat:DrafteeStat): void;
+  getBestDrafteeScore():number;
   getDrafteeCount(tmNow: number): number;
   getSecondsAgoToCross(tmNow: number, distance: number): number|null;
   isDraftingLocalUser(): boolean;
@@ -211,9 +217,11 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
   private _lastDraftSaving:DraftSavings = {watts:0, pctOfMax:0, fromDistance:0};
   private _distanceHistory:DistanceHistoryElement[] = [];
   private _tmLastHandicapRevision:number = 0;
+  private _bestDrafteeSavings:number = 0;
 
   private _pendingDraftees:{[key:string]:boolean} = {};
   private _lastDraftees:{[key:string]:boolean} = {};
+  private _drafteeStats:DrafteeStat[] = [];
   private _tmDrafteeCycle:number = 0;
   private _lastElevation:number = 0;
 
@@ -366,13 +374,15 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
         assert2(closestRiderDist >= draftingClose && closestRiderDist <= effectiveDraftingFar);
         // if there's 10 guys clustered behind a single rider, they're not going to get
         // as much benefit as a well-managed paceline
-        closestRider.notifyDrafteeThisCycle(tmNow, this.getId());
         const cRidersDraftingLastCycle = Math.max(1, closestRider.getDrafteeCount(tmNow));
 
         let bestPossibleReduction = (0.33 / cRidersDraftingLastCycle) / closestRiderEffectMod;
         const pctClose = 1 - bestPossibleReduction;
         const pctFar = 1.0;
         const myPct = (closestRiderDist - draftingClose) / (effectiveDraftingFar - draftingClose);
+
+        closestRider.notifyDrafteeThisCycle(tmNow, this.getId(), {drafteeDist: this.getDistance(), drafteePctSaved: myPct});
+
         // myPct will be 1.0 when we're really far, 0.0 when we're really close
         let myPctReduction = myPct*pctFar + (1-myPct)*pctClose;
 
@@ -457,14 +467,16 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     }
   }
 
-  public notifyDrafteeThisCycle(tmNow:number, id:number) {
+  public notifyDrafteeThisCycle(tmNow:number, id:number, pctSaved:DrafteeStat) {
     if(tmNow > this._tmDrafteeCycle) {
       // time for a new draftee cycle!
       this._lastDraftees = this._pendingDraftees;
       this._pendingDraftees = {};
       this._tmDrafteeCycle = tmNow;
+      this._drafteeStats = [];
     }
     this._pendingDraftees[id] = true;
+    this._drafteeStats.push(pctSaved);
   }
   public drafteeCheck(tmNow:number) {
     // this is here so that we don't eternally have this._lastDraftees holding onto the last guy that drafted us, since we never get another notifyDrafteeThisCycle if we go off the front and win
@@ -473,6 +485,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       this._lastDraftees = this._pendingDraftees;
       this._pendingDraftees = {};
       this._tmDrafteeCycle = tmNow;
+      this._bestDrafteeSavings = 0;
     }
   }
   public getDrafteeCount(tmNow:number):number {
@@ -503,6 +516,9 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
 
   public isDraftingLocalUser():boolean {
     return !!(this._lastDraftUser && this._lastDraftUser.getUserType() & UserTypeFlags.Local);
+  }
+  public getDrafteeStats():DrafteeStat[] {
+    return this._drafteeStats;
   }
   public getLastWattsSaved():DraftSavings {
     return this._lastDraftSaving || {

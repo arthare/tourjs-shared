@@ -2,7 +2,7 @@ import { DecorationState } from "./DecorationState";
 import { DisplayUser, PaintFrameState, RGB } from "./drawing-interface";
 import { DrawingBase } from "./drawing-shared";
 import { RaceState } from "./RaceState";
-import THREE, { CanvasTexture, DoubleSide, PerspectiveCamera, Plane, Vector2, Vector3 } from 'three';
+import THREE, { CanvasTexture, DoubleSide, Matrix4, PerspectiveCamera, Plane, Vector2, Vector3 } from 'three';
 import { User, UserInterface } from "./User";
 import { RideMap } from "./RideMap";
 import { defaultThemeConfig } from "./drawing-constants";
@@ -52,10 +52,15 @@ class DisplayUser3D extends DisplayUser {
   fastMaterial:THREE.MeshStandardMaterial;
   ar:number;
 
+  draftingMaterial:THREE.MeshStandardMaterial;
+  draftingCube:THREE.Object3D;
+  draftingGeo:THREE.BufferGeometry;
+
   constructor(user:UserInterface, scene:THREE.Scene, camera:THREE.PerspectiveCamera) {
     super(user);
     this.camera = camera;
-    this.geometry = new THREE.BoxGeometry(1,2,2);
+    this.geometry = new THREE.BoxGeometry(1,3,3);
+    this.geometry.translate(Math.random()-0.5,0,0);
     this.material = new THREE.MeshStandardMaterial( { 
       color: 0xffffff,
       opacity: 1,
@@ -121,21 +126,37 @@ class DisplayUser3D extends DisplayUser {
         scene.add(this.name);
       }
     }
+    { // drafting indicator
+      this.draftingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8888ff,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+      })
+      this.draftingGeo = new THREE.SphereBufferGeometry(2, 9, 9);
+      const draftingCubeMesh = new THREE.Mesh(this.draftingGeo, this.draftingMaterial);
+      this.draftingCube = new THREE.Object3D();
+      this.draftingCube.add(draftingCubeMesh);
+    }
 
 
     // so we've got our cube, but we'll need it in an object
     this.obj = new THREE.Object3D();
     this.obj.add(this.cube);
+    this.obj.add(this.draftingCube);
     scene.add(this.obj);
 
     
   }
 
   update(tmNow:number) {
-    this.obj.position.x = this.myUser.getDistance();
+    const dist = this.myUser.getDistance();
+
+    this.obj.position.x = dist;
     this.obj.position.y = VIS_ELEV_SCALE*this.myUser.getLastElevation() + 1;
     this.obj.position.z = Planes.RacingLane;
 
+    
 
     const slopePercent = this.myUser.getLastSlopeInWholePercent();
     const slopeMath = slopePercent / 100;
@@ -145,7 +166,33 @@ class DisplayUser3D extends DisplayUser {
     const upName = upVector.clone().add(this.name.position);
     const upMe = upVector.clone().add(this.obj.position);
     //this.cube.lookAt(lookAt);
-    this.obj.lookAt(upMe);
+
+    if(slopePercent > 0) {
+      this.obj.lookAt(upMe);
+    } else {
+      this.obj.lookAt(upMe);
+    }
+    
+    { // handling drafting graphics
+      const mixRate = 0.975;
+      if(this.myUser.hasDraftersThisCycle(tmNow)) {
+        const draftees = this.myUser.getDrafteeStats();
+        const closestDraftee = draftees.reduce((best, current) => {
+          return (!best || current.drafteeDist > best.drafteeDist) ? current : best;
+        });
+        const bestReductionOfDraftee = closestDraftee.drafteePctSaved;
+        const drafteeBehindAmount = dist - closestDraftee.drafteeDist;
+        
+        this.draftingMaterial.opacity = 0.5*(2*this.draftingMaterial.opacity * mixRate + (1-mixRate) * (1 - bestReductionOfDraftee));
+        this.draftingCube.scale.set(1,drafteeBehindAmount/4,1);
+        this.draftingCube.position.set(0,slopePercent < 0 ? drafteeBehindAmount/2 : -drafteeBehindAmount/2,-0.5);
+        
+        
+      } else {
+        this.draftingMaterial.opacity = 0.5*(2*this.draftingMaterial.opacity * mixRate + (1-mixRate) * (0));
+      }
+      
+    }
     this.name.lookAt(this.camera.position);
     
     const handicapRatio = this.myUser.getLastPower() / this.myUser.getHandicap();
