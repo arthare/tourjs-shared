@@ -4,6 +4,7 @@ export interface RideMapElevationOnly {
   getSlopeAtDistance(meters:number):number;
   getElevationAtDistance(meters:number):number;
   getLength():number;
+  getHillStatsAtDistance(meters: number):HillStats|null;
 }
 
 export interface HillStats {
