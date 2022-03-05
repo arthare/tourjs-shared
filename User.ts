@@ -177,13 +177,17 @@ export interface UserInterface {
   getBigImageMd5(): string | null;
   getLastHandicapChangeTime(): number;
   physicsTick(tmNow: number, map: RideMap, otherUsers: UserInterface[]): void;
+
+  // drafting stuff
   notifyDrafteeThisCycle(tmNow: number, id: number, stat:DrafteeStat): void;
-  getBestDrafteeScore():number;
-  getDrafteeCount(tmNow: number): number;
-  getSecondsAgoToCross(tmNow: number, distance: number): number|null;
-  isDraftingLocalUser(): boolean;
-  getLastWattsSaved(): DraftSavings;
+  getDrafteeStats():DrafteeStat[];
+  getLastDraftLength():number; // how long (in meters) was your drafting wake last frame?
   hasDraftersThisCycle(tmNow: number): boolean;
+  getDrafteeCount(tmNow: number): number;
+  getLastWattsSaved(): DraftSavings; // how many watts did we save last round?
+  isDraftingLocalUser(): boolean; // are we drafting the local player?
+
+  getSecondsAgoToCross(tmNow: number, distance: number): number|null;
   getDisplay(raceState: RaceState | null): UserDisplay;
   setImage(imageBase64: string, bigImageMd5: string | null): void;
   absorbNameUpdate(tmNow: number, name: string, type: number, handicap: number): void;
@@ -199,6 +203,10 @@ export interface UserInterface {
   isFinished(): boolean;
   getMsSinceLastPacket(tmNow: number): number;
   notePacket(tmNow: number): void;
+}
+
+function getDraftModForSpeed(speed:number):number {
+  return Math.max(1, Math.min(2, speed / 10));
 }
 
 export class User extends UserDataRecorder implements SlopeSource, UserInterface {
@@ -230,6 +238,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
   private _physicsJoulesSaved:number = 0;
   private _physicsJoulesUsed:{[key:string]:number} = {};
   private _lastDraftUser:UserInterface|null = null;
+  private _lastDraftLength:number = 0;
 
   constructor(name:string, massKg:number, handicap:number, typeFlags:number) {
     super();
@@ -351,6 +360,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       let closestRider:UserInterface|null = null;
       let closestRiderDist:number = 1e30;
       let closestRiderEffectMod = 1;
+      this._lastDraftLength = draftingFar*getDraftModForSpeed(this.getSpeed());
 
       otherUsers.forEach((user:UserInterface) => {
         const userAhead = user.getDistance() - this.getDistance();
@@ -358,7 +368,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
         // user effect mod:
         // if they're going really fast, then their draft zone will extend up to twice as long at 72km/h.
         // BUT: the draft impact will be up-to-halved.
-        const userEffectMod = Math.max(1, Math.min(2, user.getSpeed() / 10));
+        const userEffectMod = getDraftModForSpeed(user.getSpeed())
         if(userAhead >= draftingClose*2 && userAhead <= draftingFar*userEffectMod) {
           if(!closestRider || userAhead < closestRiderDist) {
             closestRiderDist = userAhead;
@@ -519,6 +529,9 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
   }
   public getDrafteeStats():DrafteeStat[] {
     return this._drafteeStats;
+  }
+  public getLastDraftLength(): number {
+      return this._lastDraftLength;
   }
   public getLastWattsSaved():DraftSavings {
     return this._lastDraftSaving || {

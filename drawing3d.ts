@@ -19,6 +19,16 @@ enum Planes {
   CameraFast = 40,
 }
 
+const FAST_R = 1;
+const FAST_G = 0;
+const FAST_B = 0;
+const LAZY_R = 0;
+const LAZY_G = 0.5;
+const LAZY_B = 0;
+const REGULAR_R = 1;
+const REGULAR_G = 1;
+const REGULAR_B = 1;
+
 const VIS_ELEV_SCALE = 6.5;
 function getVisElev(map:RideMap, dist:number) {
   return VIS_ELEV_SCALE*map.getElevationAtDistance(dist);
@@ -55,12 +65,15 @@ class DisplayUser3D extends DisplayUser {
   draftingMaterial:THREE.ShaderMaterial;
   draftingCube:THREE.Object3D;
   draftingGeo:THREE.BufferGeometry;
+  draftingCycle:Float32Array;
+  draftingLength:Float32Array;
+  draftingEffort:Float32Array;
 
   constructor(user:UserInterface, scene:THREE.Scene, camera:THREE.PerspectiveCamera) {
     super(user);
     this.camera = camera;
-    this.geometry = new THREE.BoxGeometry(1,3,3);
-    this.geometry.translate(Math.random()-0.5,0,0);
+    this.geometry = new THREE.BoxGeometry(0.25 + randRange(0,0.02),3,3);
+    this.geometry.translate(0,0,0);
     this.material = new THREE.MeshStandardMaterial( { 
       color: 0xffffff,
       opacity: 1,
@@ -108,9 +121,9 @@ class DisplayUser3D extends DisplayUser {
             side: DoubleSide,
           });
         }
-        this.regularMaterial = makeMaterial(0xffffff);
-        this.lazyMaterial = makeMaterial(0x00ff00);
-        this.fastMaterial = makeMaterial(0xff0000);
+        this.fastMaterial = makeMaterial(new THREE.Color(FAST_R, FAST_G, FAST_B).getHex());
+        this.lazyMaterial = makeMaterial(new THREE.Color(LAZY_R, LAZY_G, LAZY_B).getHex());
+        this.regularMaterial = makeMaterial(new THREE.Color(REGULAR_R, REGULAR_G, REGULAR_B).getHex());
 
         const ar = canvas.width / canvas.height;
         this.ar = ar;
@@ -129,6 +142,9 @@ class DisplayUser3D extends DisplayUser {
     { // drafting indicator// create the particle variables
       const particleCount = 100;
       const particleGeometry = new THREE.BufferGeometry();
+      this.draftingCycle = new Float32Array(particleCount);
+      this.draftingLength = new Float32Array(particleCount);
+      this.draftingEffort = new Float32Array(particleCount*4);
       
       // now create the individual particles
       let particleVerts:Float32Array = new Float32Array(particleCount*3);
@@ -137,9 +153,11 @@ class DisplayUser3D extends DisplayUser {
       
         // create a particle with random
         // position values, -250 -> 250
-        const pX = randRange(-2, 2);
-        const pY = randRange(-2, 2);
-        const pZ = randRange(-2, 2);
+        const pX = randRange(-0.25, 0.25);
+        const pY = 0;
+        const pZ = -0.5;
+        this.draftingCycle[p] = randRange(0, 1);
+        console.log("draft cycle = ", pY);
       
         // add it to the geometry
         particleVerts[ixVert++] = pX;
@@ -148,16 +166,27 @@ class DisplayUser3D extends DisplayUser {
       }
       particleGeometry.setAttribute('position', new THREE.BufferAttribute( particleVerts, 3 ) );
 
-      const particleVertexCode = `attribute float size;
-                                  varying vec3 vColor;
+      const particleVertexCode = `attribute float draftPct;
+                                  attribute float draftLength;
+                                  attribute vec4 draftEffort;
+                                  varying vec4 vColor;
 
+                                  float rand(float co){
+                                      return fract(sin(co) * 43758.5453);
+                                  }
                                   void main() {
 
-                                    vColor = color;
+                                    vColor = vec4(draftEffort.r, draftEffort.g, draftEffort.b, 1.0 - draftPct);
 
-                                    vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+                                    vec3 rawPos = position;
+                                    rawPos.x = (position.x / abs(position.x)) * sqrt(draftPct) * 3.0;
+                                    rawPos.z = position.z;
+                                    rawPos.y -= draftPct * draftLength;
 
-                                    gl_PointSize = 0.5;
+                                    float r = rand(draftPct);
+                                    rawPos += 0.1*draftEffort.w*vec3(r,r,r);
+                                    vec4 mvPosition = modelViewMatrix * vec4( rawPos, 1.0 );
+                                    gl_PointSize = (1.0 - draftPct) * 8.0 * ( 10.0 / -mvPosition.z );
 
                                     gl_Position = projectionMatrix * mvPosition;
 
@@ -165,13 +194,11 @@ class DisplayUser3D extends DisplayUser {
       const particleFragmentCode = `
                                     uniform sampler2D pointTexture;
 
-                                    varying vec3 vColor;
+                                    varying vec4 vColor;
 
                                     void main() {
 
-                                      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-
-                                      gl_FragColor = gl_FragColor * texture2D( pointTexture, gl_PointCoord );
+                                      gl_FragColor = vColor;
 
                                     }
       `;
@@ -181,12 +208,17 @@ class DisplayUser3D extends DisplayUser {
         vertexShader: particleVertexCode,
         fragmentShader: particleFragmentCode,
         vertexColors: true,
+        transparent: true,
       })
       const points = new THREE.Points(particleGeometry, particleMaterial);
       // add it to the scene
+      particleGeometry.setAttribute('draftPct', new THREE.Float32BufferAttribute(this.draftingCycle, 1, false).setUsage(THREE.DynamicDrawUsage));
+      particleGeometry.setAttribute('draftLength', new THREE.Float32BufferAttribute(this.draftingLength, 1, false).setUsage(THREE.DynamicDrawUsage));
+      particleGeometry.setAttribute('draftEffort', new THREE.Float32BufferAttribute(this.draftingEffort, 4, false).setUsage(THREE.DynamicDrawUsage));
       this.draftingGeo = particleGeometry;
       this.draftingMaterial = particleMaterial;
       this.draftingCube = new THREE.Object3D();
+      points.translateX(0.5);
       this.draftingCube.add(points);
     }
 
@@ -200,32 +232,82 @@ class DisplayUser3D extends DisplayUser {
     
   }
 
+  tmLastUpdate:number = 0;
   update(tmNow:number) {
+
     const dist = this.myUser.getDistance();
 
     this.obj.position.x = dist;
     this.obj.position.y = VIS_ELEV_SCALE*this.myUser.getLastElevation() + 1;
     this.obj.position.z = Planes.RacingLane;
 
-    
+    const dt = this.tmLastUpdate > 0 ? (tmNow - this.tmLastUpdate) / 1000 : 0;
+    this.tmLastUpdate = tmNow;
+
 
     const slopePercent = this.myUser.getLastSlopeInWholePercent();
     const slopeMath = slopePercent / 100;
     const visSlopeMath = slopeMath * VIS_ELEV_SCALE;
     // so if we're have slope 0.2 (rise 0.2, run 1), then our up-vector will be (rise 1, run -0.2)
     const upVector = new THREE.Vector3(-visSlopeMath, 1, 0);
-    const upName = upVector.clone().add(this.name.position);
     const upMe = upVector.clone().add(this.obj.position);
-    //this.cube.lookAt(lookAt);
-
     if(slopePercent > 0) {
-      this.obj.lookAt(upMe);
+      this.cube.rotation.z = Math.PI;
+      this.draftingCube.rotation.z = 0;
+      //this.cube.rotateZ(Math.PI/2);
     } else {
-      this.obj.lookAt(upMe);
+      this.cube.rotation.z = 0;
+      this.draftingCube.rotation.z = Math.PI;
     }
     
-    { // handling drafting graphics
+    this.obj.lookAt(upMe);
+    
+    
+    if(true || this.myUser.hasDraftersThisCycle(tmNow)) { // handling drafting graphics
+      this.draftingCube.visible = true;
+      const rgDraftCycle:any = this.draftingGeo.attributes.draftPct.array;
+      const rgDraftLength:any = this.draftingGeo.attributes.draftLength.array;
+      const rgDraftEffort:any = this.draftingGeo.attributes.draftEffort.array;
+      const userSpeed = this.myUser.getSpeed();
+      const draftLength = this.myUser.getLastDraftLength();
+      const draftEffort = (this.myUser.getLastPower() / this.myUser.getHandicap());
+      if(draftLength > 0) {
+        for(var index = 0; index < rgDraftCycle.length; index++) {
+          let val = rgDraftCycle[index];
+          const pct = Math.max(0.3, val);
+          const speed = pct * userSpeed + (1-pct)*0;
+          val += speed*dt / draftLength;
+          if(val >= 1) {
+            // resetting the particle back to the start
+            
+            rgDraftLength[index] = draftLength;
 
+            if(draftEffort >= 1.3) {
+              rgDraftEffort[index*4 + 0] = FAST_R;
+              rgDraftEffort[index*4 + 1] = FAST_G;
+              rgDraftEffort[index*4 + 2] = FAST_B;
+              rgDraftEffort[index*4 + 3] = 1;
+            } else if(draftEffort <= 0.5) {
+              rgDraftEffort[index*4 + 0] = LAZY_R;
+              rgDraftEffort[index*4 + 1] = LAZY_G;
+              rgDraftEffort[index*4 + 2] = LAZY_B;
+              rgDraftEffort[index*4 + 3] = 0;
+            } else {
+              rgDraftEffort[index*4 + 0] = REGULAR_R;
+              rgDraftEffort[index*4 + 1] = REGULAR_G;
+              rgDraftEffort[index*4 + 2] = REGULAR_B;
+              rgDraftEffort[index*4 + 3] = 0;
+            }
+            val = val % 1;
+          }
+          rgDraftCycle[index] = val;
+        }
+      }
+      this.draftingGeo.attributes.draftPct.needsUpdate = true;
+      this.draftingGeo.attributes.draftLength.needsUpdate = true;
+      this.draftingGeo.attributes.draftEffort.needsUpdate = true;
+    } else {
+      this.draftingCube.visible = false;
     }
     this.name.lookAt(this.camera.position);
     
@@ -234,6 +316,8 @@ class DisplayUser3D extends DisplayUser {
       this.nameCube.material = this.fastMaterial;
     } else if(handicapRatio < 0.5) {
       this.nameCube.material = this.lazyMaterial;
+    } else {
+      this.nameCube.material = this.regularMaterial;
     }
 
     let xShift = 0;
@@ -568,7 +652,7 @@ export class Drawer3D extends DrawingBase {
       canvas.height = canvas.clientHeight;
 
       this.scene = new THREE.Scene();
-      this.camera = new THREE.PerspectiveCamera( 75, canvas.clientWidth / canvas.clientHeight, Math.max(0.1, Planes.CameraClose - Planes.GrassNear), Planes.Background - Planes.CameraFast );
+      this.camera = new THREE.PerspectiveCamera( 85, canvas.clientWidth / canvas.clientHeight, Math.max(0.1, Planes.CameraClose - Planes.GrassNear), Planes.Background - Planes.CameraFast );
 
       //const light = new THREE.AmbientLight( 0x404040 ); // soft white light
       //this.scene.add( light );
@@ -667,8 +751,9 @@ export class Drawer3D extends DrawingBase {
 
         let defaultFocalLength = 15;
         let defaultCamPosition = new THREE.Vector3(dist+1, getVisElev(map, dist) + camDist/4, camDist);
+        //let defaultCamPosition = new THREE.Vector3(dist+1, getVisElev(map, dist) + 50, camDist);
         
-        const defaultLookAt = new THREE.Vector3(dist, VIS_ELEV_SCALE*localUser.getLastElevation(), Planes.Background);
+        const defaultLookAt = new THREE.Vector3(dist, VIS_ELEV_SCALE*localUser.getLastElevation(), Planes.RoadNear);
 
         // these "shifts" are how far we want to change our aim from the default, "look directly at player" view
         let focalLengthShift = 0;
