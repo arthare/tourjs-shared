@@ -421,12 +421,13 @@ export default class ConnectionManager {
 
   _onLocalHandicapChange:(newHandicap:number)=>void;
   _onLastServerRaceStateChange:()=>void;
-  _onNetworkUpdateComplete:()=>void;
+  _onNetworkUpdateComplete:(fromWho:ConnectionManager, count:number)=>void;
+  _networkUpdates = 0;
   _notifyNewClient:(client:S2CPositionUpdateUser, image:string|null)=>void;
 
   constructor(onLocalHandicapChange:(newHandicap:number)=>void,
               onLastServerRaceStateChange:()=>void,
-              onNetworkUpdateComplete:()=>void,
+              onNetworkUpdateComplete:(fromWho:ConnectionManager, count:number)=>void,
               notifyNewClient:(client:S2CPositionUpdateUser, image:string|null)=>void) {
     this._onLocalHandicapChange = onLocalHandicapChange;
     this._onLastServerRaceStateChange = onLastServerRaceStateChange;
@@ -639,7 +640,7 @@ export default class ConnectionManager {
           this.raceResults = bm.payload;
           break;
       }
-      this._onNetworkUpdateComplete();
+      this._onNetworkUpdateComplete(this, this._networkUpdates++);
     } else {
       debugger;
       this._ws?.close();
