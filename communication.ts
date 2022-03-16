@@ -410,6 +410,8 @@ export interface RaceResultSubmission {
 }
 
 export default class ConnectionManager {
+  static _this:ConnectionManager = null;
+
   _timeout:any = 0;
   _ws:WebSocket|null = null;
   _raceState:RaceState|null = null;
@@ -426,11 +428,14 @@ export default class ConnectionManager {
   _onNetworkUpdateComplete:(fromWho:ConnectionManager, count:number)=>void;
   _networkUpdates = 0;
   _notifyNewClient:(client:S2CPositionUpdateUser, image:string|null)=>void;
+  _lastWebsocket = null;
 
   constructor(onLocalHandicapChange:(newHandicap:number)=>void,
               onLastServerRaceStateChange:()=>void,
               onNetworkUpdateComplete:(fromWho:ConnectionManager, count:number)=>void,
               notifyNewClient:(client:S2CPositionUpdateUser, image:string|null)=>void) {
+
+    ConnectionManager._this = this; // always have the singleton as myself
     this._onLocalHandicapChange = onLocalHandicapChange;
     this._onLastServerRaceStateChange = onLastServerRaceStateChange;
     this._onNetworkUpdateComplete = onNetworkUpdateComplete;
@@ -439,8 +444,17 @@ export default class ConnectionManager {
 
   _performStartupNegotiate(sub:string, ws:WebSocket, user:UserInterface, accountId:string, gameId:string):Promise<ClientConnectionResponse> {
     const oldOnMessage = ws.onmessage;
+
     return new Promise((resolve, reject) => {
       ws.onmessage = (msg:MessageEvent) => {
+        if(ws !== this._lastWebsocket) {
+          // ignore messages from this websocket, since it is not the last one we negotiated
+          console.log("we just got a message from ", ws, ", but it wasn't the same as this._lastWebsocket ", this._lastWebsocket);
+          try {
+            ws.close();
+          } catch(e) {}
+          return;
+        }
         try {
           const basicMessage:S2CBasicMessage = JSON.parse(msg.data);
           this._lastServerRaceState = basicMessage.raceState;
@@ -457,7 +471,6 @@ export default class ConnectionManager {
       
 
       // ok, we've got our listener set up
-      console.log("image size is ", user.getImage()?.length);
       const connect:ClientConnectionRequest = {
         sub,
         riderName: user.getName(),
@@ -526,6 +539,7 @@ export default class ConnectionManager {
       if(!user) {
         throw new Error("You don't have a user, how do you expect to connect?");
       }
+      this._lastWebsocket = ws;
       return this._performStartupNegotiate(sub, ws, user, accountId, gameId).then((ccr:ClientConnectionResponse) => {
         user.setId(ccr.yourAssignedId);
 
@@ -535,7 +549,7 @@ export default class ConnectionManager {
         this._raceState = raceState;
         this._ws = ws;
         this._gameId = gameId;
-        ws.onmessage = (event:MessageEvent) => this._onMsgReceived(event);
+        ws.onmessage = (event:MessageEvent) => this._onMsgReceived(ws, event);
         return this._raceState;
       })
     }).then((raceState:RaceState) => {
@@ -545,7 +559,16 @@ export default class ConnectionManager {
     
   }
 
-  _onMsgReceived(event:MessageEvent) {
+  _onMsgReceived(fromWs:WebSocket, event:MessageEvent) {
+    if(fromWs !== this._lastWebsocket) {
+      console.log("we got a big message ", fromWs, " but it wasn't the same as ", this._lastWebsocket);
+      fromWs.close();
+      return;
+    }
+    if(this !== ConnectionManager._this) {
+      // we're not the latest/greatest connection manage, so exit
+      return;
+    }
     const tmNow = new Date().getTime();
 
     let bm:S2CBasicMessage;
