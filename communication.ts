@@ -9,6 +9,7 @@ export enum PORTS {
   TOURJS_WEBSOCKET_PORT = 8080,
   GENERAL_HTTP_PORT = 8081,
 }
+export const SERVER_UPDATE_RATE_HZ = 8;
 
 
 export enum BasicMessageType {
@@ -207,6 +208,7 @@ export class ServerMapDescription {
 }
 
 export interface ClientConnectionRequest {
+  sub:string;
   riderName:string; // name of your rider.  So the "Jones Household" account might have riders "SarahJones" and "GeorgeJones"
   imageBase64:string|null; // image of your rider
   accountId:string;
@@ -435,7 +437,7 @@ export default class ConnectionManager {
     this._notifyNewClient = notifyNewClient
   }
 
-  _performStartupNegotiate(ws:WebSocket, user:UserInterface, accountId:string, gameId:string):Promise<ClientConnectionResponse> {
+  _performStartupNegotiate(sub:string, ws:WebSocket, user:UserInterface, accountId:string, gameId:string):Promise<ClientConnectionResponse> {
     const oldOnMessage = ws.onmessage;
     return new Promise((resolve, reject) => {
       ws.onmessage = (msg:MessageEvent) => {
@@ -457,6 +459,7 @@ export default class ConnectionManager {
       // ok, we've got our listener set up
       console.log("image size is ", user.getImage()?.length);
       const connect:ClientConnectionRequest = {
+        sub,
         riderName: user.getName(),
         imageBase64: user.getImage(),
         bigImageMd5: user.getBigImageMd5(),
@@ -475,7 +478,7 @@ export default class ConnectionManager {
     })
   }
 
-  connect(wsUrl:string, userProvider:UserProvider, gameId:string, accountId:string, user:UserInterface, fnOnNewRaceState:(raceState:RaceState)=>void):Promise<RaceState> {
+  connect(sub:string, wsUrl:string, userProvider:UserProvider, gameId:string, accountId:string, user:UserInterface, fnOnNewRaceState:(raceState:RaceState)=>void):Promise<RaceState> {
     this._desiresDisconnect = false;
     return new Promise<WebSocket>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
@@ -484,7 +487,7 @@ export default class ConnectionManager {
         resolve(ws);
       }
       ws.onerror = (err) => {
-        console.log("websocket error");
+        console.log("websocket error, shutting down");
         reject(err);
         ws.close();
         debugger;
@@ -500,7 +503,7 @@ export default class ConnectionManager {
             return;
           }
           console.log("attempting reconnect to ", gameId);
-          this.connect(wsUrl, userProvider, gameId, accountId, user, fnOnNewRaceState).then((newRaceState) => {
+          this.connect(sub, wsUrl, userProvider, gameId, accountId, user, fnOnNewRaceState).then((newRaceState) => {
             // woohoo, we reconnected!
             fnOnNewRaceState(newRaceState);
           }, (failure) => {
@@ -523,7 +526,7 @@ export default class ConnectionManager {
       if(!user) {
         throw new Error("You don't have a user, how do you expect to connect?");
       }
-      return this._performStartupNegotiate(ws, user, accountId, gameId).then((ccr:ClientConnectionResponse) => {
+      return this._performStartupNegotiate(sub, ws, user, accountId, gameId).then((ccr:ClientConnectionResponse) => {
         user.setId(ccr.yourAssignedId);
 
         this._userProvider = userProvider;
@@ -615,7 +618,7 @@ export default class ConnectionManager {
           })
           
 
-          this._raceState.absorbPositionUpdate(bm.timeStamp, bm.payload);
+          this._raceState.absorbPositionUpdate(tmNow, bm.timeStamp, bm.payload);
           break;
         }
         case BasicMessageType.S2CImageUpdate:

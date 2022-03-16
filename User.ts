@@ -191,7 +191,7 @@ export interface UserInterface {
   getDisplay(raceState: RaceState | null): UserDisplay;
   setImage(imageBase64: string, bigImageMd5: string | null): void;
   absorbNameUpdate(tmNow: number, name: string, type: number, handicap: number): void;
-  absorbPositionUpdate(tmNow: number, update: S2CPositionUpdateUser): void;
+  absorbPositionUpdate(tmNow: number, tmNowOnServer:number, update: S2CPositionUpdateUser): void;
   isPowerValid(tmNow: number): boolean;
   notifyPower(tmNow: number, watts: number): void;
   notifyCadence(tmNow: number, cadence: number): void;
@@ -628,9 +628,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       this._typeFlags = type;
     }
   }
-  absorbPositionUpdate(tmNow:number, update:S2CPositionUpdateUser) {
-    this._speed = update.speed;
-    this._position = update.distance;
+  absorbPositionUpdate(tmNow:number, tmNowOnServer:number, update:S2CPositionUpdateUser) {
     if(this._typeFlags & UserTypeFlags.Local) {
       // we're local, so we won't re-absorb the power from the server
     } else {
@@ -638,6 +636,9 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       this.notifyPower(tmNow, update.power);
       this.notifyHrm(tmNow, update.hrm);
     }
+    
+    this._speed = update.speed;
+    this._position = update.distance;
     this.notePacket(tmNow);
   }
 }

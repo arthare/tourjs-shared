@@ -8,6 +8,7 @@ export interface TourJsAlias {
 
 export interface TourJsAccount {
   username?:string;
+  sub:string;
   accountid:number;
   aliases: TourJsAlias[];
 }
