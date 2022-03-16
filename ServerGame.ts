@@ -9,6 +9,7 @@ import { SpanAverage } from "./SpanAverage";
 import { BrainLocation, brainPath, makeTensor, normalizeData, NormData, predictFromRawTrainingData, takeTrainingSnapshot, TrainingDataPrepped, TrainingSnapshotV2, trainingSnapshotToAIInput, unnormalizeData } from "./ServerAISnapshots";
 import * as tf from '@tensorflow/tfjs-node';
 import { LayersModel, Sequential, Tensor, Tensor2D } from '@tensorflow/tfjs-node';
+import {v4 as uuidv4} from 'uuid';
 
 export class ServerUser extends User {
   _tmLastNameSent:number;
@@ -19,11 +20,12 @@ export class ServerUser extends User {
   _spanAverages:Map<number,SpanAverage> = new Map<number, SpanAverage>();
   _wsConnection:WebSocket|null;
   _raceState:RaceState;
+  _sub:string; // auth0 sub uniquely identifying the owner of this rider.  When someone joins (or reconnects), they send this along so we can figure out who they are
 
-
-  constructor(name:string, massKg:number, handicap:number, typeFlags:number, wsConnection:WebSocket|null, raceState:RaceState) {
+  constructor(sub:string, name:string, massKg:number, handicap:number, typeFlags:number, wsConnection:WebSocket|null, raceState:RaceState) {
     super(name, massKg, handicap, typeFlags);
 
+    this._sub = sub;
     this._tmLastFinishUpdate = -1;
     this._tmLastNameSent = -1;
     this._tmLastImageUpdate = -1;
@@ -197,7 +199,7 @@ export class ServerUserProvider implements UserProvider {
     }
 
     let newId = userIdCounter++;
-    const user = new ServerUser(ccr.riderName, DEFAULT_RIDER_MASS, ccr.riderHandicap, UserTypeFlags.Remote | userTypeFlags, wsConnection, raceState);
+    const user = new ServerUser(ccr.sub, ccr.riderName, DEFAULT_RIDER_MASS, ccr.riderHandicap, UserTypeFlags.Remote | userTypeFlags, wsConnection, raceState);
     if(user.getUserType() & (UserTypeFlags.Ai | UserTypeFlags.Bot)) {
       assert2(wsConnection === null);
     } else {
@@ -468,6 +470,7 @@ export class ServerGame {
       const aiBrain = getNextAIBrain(aiStrength, brains);
 
       const aiId = this.userProvider.addUser({
+        sub: `ai_${uuidv4()}`,
         riderName:aiBrain.getName(aiStrength),
         accountId:"-1",
         riderHandicap: 300*aiStrengthBoost,

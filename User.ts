@@ -1,7 +1,7 @@
 import { RideMap } from "./RideMap";
 import { assert2, formatDisplayDistance } from "./Utils";
 import { RaceState } from "./RaceState";
-import { S2CPositionUpdateUser, S2CPositionUpdate } from "./communication";
+import { S2CPositionUpdateUser, S2CPositionUpdate, SERVER_UPDATE_RATE_HZ } from "./communication";
 
 
 export interface CadenceRecipient {
@@ -22,6 +22,8 @@ export const DEFAULT_RHO = 1.225;
 export const DEFAULT_CDA = 0.25;
 export const DEFAULT_HANDICAP_POWER = 300;
 export const DEFAULT_RIDER_MASS = 80;
+const UI_SMOOTH_SECONDS = 1.0;
+
 
 export enum UserTypeFlags {
   Local = 1,
@@ -172,6 +174,7 @@ export interface UserInterface {
   getDistanceHistory(): DistanceHistoryElement[];
   getLastSlopeInWholePercent(): number;
   getDistance(): number;
+  getDistanceForUi(tmNow:number) : number;
   getSpeed(): number;
   getImage(): string | null;
   getBigImageMd5(): string | null;
@@ -191,7 +194,7 @@ export interface UserInterface {
   getDisplay(raceState: RaceState | null): UserDisplay;
   setImage(imageBase64: string, bigImageMd5: string | null): void;
   absorbNameUpdate(tmNow: number, name: string, type: number, handicap: number): void;
-  absorbPositionUpdate(tmNow: number, update: S2CPositionUpdateUser): void;
+  absorbPositionUpdate(tmNow: number, tmNowOnServer:number, update: S2CPositionUpdateUser): void;
   isPowerValid(tmNow: number): boolean;
   notifyPower(tmNow: number, watts: number): void;
   notifyCadence(tmNow: number, cadence: number): void;
@@ -222,6 +225,8 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
   private _lastT:number = 0;
   private _speed:number = 0;
   protected _position:number = 0;
+  private _smoothDelta:number = 0;
+  private _tmSmoothDelta:number = 0;
   private _lastDraftSaving:DraftSavings = {watts:0, pctOfMax:0, fromDistance:0};
   private _distanceHistory:DistanceHistoryElement[] = [];
   private _tmLastHandicapRevision:number = 0;
@@ -303,6 +308,14 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
 
   getDistance():number {
     return this._position;
+  }
+  getDistanceForUi(tmNow:number):number {
+    const secondsSince = (tmNow - this._tmSmoothDelta) / 1000;
+    const pct = Math.max(0, Math.min(1, secondsSince / UI_SMOOTH_SECONDS));
+    const shiftAmt = this._smoothDelta * (1-pct);
+    const ret = this._position - shiftAmt;
+
+    return ret;
   }
   getSpeed():number {
     return this._speed;
@@ -628,9 +641,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       this._typeFlags = type;
     }
   }
-  absorbPositionUpdate(tmNow:number, update:S2CPositionUpdateUser) {
-    this._speed = update.speed;
-    this._position = update.distance;
+  absorbPositionUpdate(tmNow:number, tmNowOnServer:number, update:S2CPositionUpdateUser) {
     if(this._typeFlags & UserTypeFlags.Local) {
       // we're local, so we won't re-absorb the power from the server
     } else {
@@ -638,6 +649,17 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       this.notifyPower(tmNow, update.power);
       this.notifyHrm(tmNow, update.hrm);
     }
+
+    // keep track of how far we had to move this user.  we can blend in this adjustment over the next couple frames so their client doesn't look all herky jerky
+    const delta = update.distance - this.getDistanceForUi(tmNow); // how far off was our client estimate?
+    
+    this._smoothDelta = delta;
+    this._tmSmoothDelta = tmNow;
+
+    this._speed = update.speed;
+    this._position = update.distance;
+
+    
     this.notePacket(tmNow);
   }
 }

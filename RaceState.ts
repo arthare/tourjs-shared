@@ -106,11 +106,11 @@ export class RaceState {
     });
   }
 
-  absorbPositionUpdate(tmNow:number, msg:S2CPositionUpdate) {
+  absorbPositionUpdate(tmNow:number, tmNowOnServer:number, msg:S2CPositionUpdate) {
     msg.clients.forEach((client) => {
       const user = this._userProvider.getUser(client.id);
       if(user) {
-        user.absorbPositionUpdate(tmNow, client);
+        user.absorbPositionUpdate(tmNow, tmNowOnServer, client);
       }
 
     })
