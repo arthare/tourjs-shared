@@ -10,6 +10,5 @@ export interface TourJsAccount {
   username?:string;
   sub:string;
   accountid:number;
-  sub:string;
   aliases: TourJsAlias[];
 }
