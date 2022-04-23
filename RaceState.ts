@@ -34,6 +34,9 @@ export class RaceState {
     this._tmUnfinishedHuman = new Date().getTime();
     RaceState._mainRaceState = this;
   }
+  public static getActiveRaceState() {
+    return this._mainRaceState;
+  }
   isOldNews():boolean {
     return this !== RaceState._mainRaceState;
   }
