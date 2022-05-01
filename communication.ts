@@ -1,5 +1,5 @@
 import { RaceState, UserProvider } from "./RaceState";
-import { JoulesUsedClass, User, UserInterface, UserTypeFlags } from "./User";
+import { HandicapChangeReason, JoulesUsedClass, User, UserInterface, UserTypeFlags } from "./User";
 import { assert2 } from "./Utils";
 import { RideMap, RideMapElevationOnly, RideMapPartial } from "./RideMap";
 import { ServerGame } from "./ServerGame";
@@ -615,7 +615,7 @@ export default class ConnectionManager {
                 // let's store their new handicap so they don't have to remember to update it...
                 console.log("the server has updated our user's handicap to ", newHandicap.toFixed(1));
 
-                localUser.setHandicap(newHandicap);
+                localUser.setHandicap(newHandicap, HandicapChangeReason.ServerRehandicap);
                 this._onLocalHandicapChange(newHandicap);
               }
             })

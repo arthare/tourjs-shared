@@ -1,4 +1,4 @@
-import { User, UserTypeFlags, DEFAULT_HANDICAP_POWER, DEFAULT_RIDER_MASS, UserInterface, DistanceHistoryElement } from "./User";
+import { User, UserTypeFlags, DEFAULT_HANDICAP_POWER, DEFAULT_RIDER_MASS, UserInterface, DistanceHistoryElement, HandicapChangeReason } from "./User";
 import { UserProvider, RaceState, getAIStrengthBoostForDistance } from "./RaceState";
 import { ClientConnectionRequest, CurrentRaceState, S2CFinishUpdate } from "./communication";
 import { RideMap } from "./RideMap";
@@ -168,7 +168,7 @@ export class ServerUser extends User {
         const estFTP = estSum / estCount;
         if(estFTP >= this.getHandicap()*1.02) {
           console.log("revising " + this.getName() + "'s FTP to " + estFTP.toFixed(1));
-          this.setHandicap(estFTP);
+          this.setHandicap(estFTP, HandicapChangeReason.ServerRehandicap);
         }
       }
 

@@ -154,6 +154,10 @@ export interface DrafteeStat {
   drafteePctSaved:number;
 }
 
+export enum HandicapChangeReason {
+  UserJoined,
+  ServerRehandicap,
+}
 export interface UserInterface {
   getName(): string;
   getUserType(): number;
@@ -163,7 +167,7 @@ export interface UserInterface {
   getId(): number;
 
   setId(newId: number): void;
-  setHandicap(watts: number): void;
+  setHandicap(watts: number, changeReason:HandicapChangeReason): void;
   setChat(tmNow: number, chat: string): void;
   getLastChat(tmNow: number): { tmWhen: number; chat: string; } | null;
   getLastElevation(): number;
@@ -211,7 +215,6 @@ export interface UserInterface {
 function getDraftModForSpeed(speed:number):number {
   return Math.max(1, Math.min(2, speed / 10));
 }
-
 export class User extends UserDataRecorder implements SlopeSource, UserInterface {
 
   private _massKg: number;
@@ -254,8 +257,8 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     this._lastT = new Date().getTime() / 1000.0;
   }
 
-  public setHandicap(watts:number) {
-    assert2(watts >= this._handicap, "you should only increase handicaps, not tank them");
+  public setHandicap(watts:number, changeReason:HandicapChangeReason) {
+    assert2(watts >= this._handicap || changeReason === HandicapChangeReason.UserJoined, "you should only increase handicaps, not tank them");
     this._handicap = watts;
   }
 
