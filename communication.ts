@@ -591,7 +591,6 @@ export default class ConnectionManager {
       switch(bm.type) {
         case BasicMessageType.S2CClientChat:
         {
-          console.log("chat receiv")
           const update:S2CChatUpdate = <S2CChatUpdate>bm.payload;
           console.log("chat: ", update);
           const fromUser = this._userProvider.getUser(update.fromId);
