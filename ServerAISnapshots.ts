@@ -1,6 +1,7 @@
 import { LayersModel, Tensor, Tensor2D } from "@tensorflow/tfjs-node";
 import { getAIStrengthBoostForDistance, RaceState } from "./RaceState";
 import { RideMap } from "./RideMap";
+import { StatsData } from "./ServerGame";
 import { DEFAULT_CDA, DEFAULT_CRR, DEFAULT_GRAVITY, DEFAULT_HANDICAP_POWER, DEFAULT_RHO, DEFAULT_RIDER_MASS, User, UserInterface, UserTypeFlags } from "./User";
 import { assert2 } from "./Utils";
 //import tf from '@tensorflow/tfjs-node';
@@ -34,10 +35,17 @@ export function predictFromRawTrainingData(tf:any, model:LayersModel, norms:Norm
   const predictions = model.predict(normalizedInputs);
   const fixedPreds = unnormalizeData(predictions, norms.labelMin, norms.labelMax);
 
-  let ret = fixedPreds.dataSync()[0];
+  let ret:number = fixedPreds.dataSync()[0];
+
+  numbers.dispose();
+  normalizedInputs.dispose();
+  if(fixedPreds.dispose) {
+    fixedPreds.dispose();
+  }
 
   ret = Math.max(0, ret);
   return ret;
+  //return 0;
 }
 export class NormData {
   inputMin:Tensor;
@@ -633,12 +641,26 @@ function shuffle(arrays:any[][]):any[][] {
 }
 
 export function unnormalizeData(data:any, min:Tensor, max:Tensor) {
-  return data.mul(max.sub(min)).add(min);
+  const subMin = max.sub(min);
+  const dataMul = data.mul(subMin);
+  const dataMulAdd = dataMul.add(min);
+
+  subMin.dispose();
+  dataMul.dispose();
+  return dataMulAdd;
 }
 export function normalizeData(data:Tensor2D, min:Tensor, max:Tensor) {
-  return  data.sub(min).div(max.sub(min));
+  const subMin = data.sub(min);
+  const maxSubMin = max.sub(min);
+  const subMinDiv = subMin.div(maxSubMin);
+
+  subMin.dispose();
+  maxSubMin.dispose();
+
+  return subMinDiv;
 }
 export function makeTensor(tf:any, arr:number[][]):Tensor2D {
+  StatsData.note("makeTensor");
   return tf.tensor2d(arr, [arr.length, arr[0].length]);
 }
 
