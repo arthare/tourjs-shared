@@ -10,7 +10,14 @@ import { BrainLocation, brainPath, makeTensor, normalizeData, NormData, predictF
 import * as tf from '@tensorflow/tfjs-node';
 import { LayersModel, Sequential, Tensor, Tensor2D } from '@tensorflow/tfjs-node';
 import {v4 as uuidv4} from 'uuid';
+import { dbCreateUserAccount, dbGetUserAccount, dbUpdateAlias, dbUpdateHandicap } from "../index-db";
 
+export class StatsData {
+  static counts:{[key:string]:number} = {};
+  public static note(topic:string) {
+    StatsData.counts[topic] = (StatsData.counts[topic] || 0) + 1;
+  };
+}
 export class ServerUser extends User {
   _tmLastNameSent:number;
   _tmLastFinishUpdate:number;
@@ -38,6 +45,12 @@ export class ServerUser extends User {
     })
   }
 
+  physicsTick(tmNow: number, map: RideMap, otherUsers: UserInterface[]): void {
+    super.physicsTick(tmNow, map, otherUsers);
+
+    StatsData.note(`User[${this.getUserType()}] physicsTick`);
+    StatsData.note(`User[any] physicsTick`);
+  }
   getSub():string {
     return this._sub;
   }
@@ -79,6 +92,7 @@ export class ServerUser extends User {
 
 
     if(tmNow - this._tmTrainingSnapshot > 1500) {
+      StatsData.note("Take training snapshot");
       
       if(this._pendingTrainingSnapshot) {
         // we've got an old training snapshot that needs our current power filled in, and then needs to get dumped to disk
@@ -96,8 +110,10 @@ export class ServerUser extends User {
 
   public notifyPower(tmNow:number, watts:number):void {
     super.notifyPower(tmNow, watts);
+    StatsData.note("User [any] notifypower");
 
     if(!(this.getUserType() & UserTypeFlags.Ai)) {
+      StatsData.note("User [human] notifypower");
       // we're a human
       this._spanAverages.forEach((span, minutes) => {
         span.add(tmNow, watts);
@@ -167,6 +183,7 @@ export class ServerUser extends User {
       if(estCount > 0) {
         const estFTP = estSum / estCount;
         if(estFTP >= this.getHandicap()*1.02) {
+          StatsData.note("User [human] update FTP");
           console.log("revising " + this.getName() + "'s FTP to " + estFTP.toFixed(1));
           this.setHandicap(estFTP, HandicapChangeReason.ServerRehandicap);
         }
@@ -281,9 +298,11 @@ export class AINNBrain implements AIBrain {
     }
     if(this._model) {
 
+      StatsData.note("AI predictFromRaw");
       const ret = handicap * this._strength * predictFromRawTrainingData(tf, this._model, this._norms, data);
       return ret;
     }
+    StatsData.note("AI getPower");
     return this.getPower(0, handicap, data.distanceInRace, data.distanceInRace + data.distanceToFinish, data.avgSlopeCurrentUphill);
   }
   getName(handicap: number): string {

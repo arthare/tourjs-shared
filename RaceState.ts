@@ -47,8 +47,7 @@ export class RaceState {
     if(this._stopped) {
       return;
     }
-    if(typeof window !== 'undefined' && RaceState._mainRaceState !== this) {
-      debugger;
+    if(typeof window !== 'undefined' && this.isOldNews()) {
       return;
     }
     const users = this._userProvider.getUsers(tmNow);
