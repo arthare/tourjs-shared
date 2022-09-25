@@ -408,13 +408,13 @@ export interface RaceResultSubmission {
   samples: IWorkoutSample[];
   bigImageMd5: string;
 }
+let wsId = 0;
 
 export default class ConnectionManager {
   static _this:ConnectionManager = null;
 
   _timeout:any = 0;
   _ws:WebSocket|null = null;
-  _raceState:RaceState|null = null;
   _gameId:string = '';
   _lastServerRaceState:S2CRaceStateUpdate|null = null;
   raceResults:S2CFinishUpdate|null = null;
@@ -546,20 +546,21 @@ export default class ConnectionManager {
         this._userProvider = userProvider;
         const map = new RideMapHandicap(ccr.map);
         const raceState = new RaceState(map, userProvider, gameId);
-        this._raceState = raceState;
         this._ws = ws;
+        ((this._ws) as any).id = wsId++;
         this._gameId = gameId;
-        ws.onmessage = (event:MessageEvent) => this._onMsgReceived(ws, event);
-        return this._raceState;
+        ws.onmessage = (event:MessageEvent) => this._onMsgReceived(ws, event, raceState);
+        return {ws,raceState};
       })
-    }).then((raceState:RaceState) => {
-      this.scheduleNetworkTick();
-      return raceState;
+    }).then((res:{ws:WebSocket, raceState:RaceState}) => {
+      // all connected up, let's do our first race-state tick
+      this.scheduleNetworkTick(res.ws, res.raceState);
+      return res.raceState;
     })
     
   }
 
-  _onMsgReceived(fromWs:WebSocket, event:MessageEvent) {
+  _onMsgReceived(fromWs:WebSocket, event:MessageEvent, raceState:RaceState) {
     if(fromWs !== this._lastWebsocket) {
       console.log("we got a big message ", fromWs, " but it wasn't the same as ", this._lastWebsocket);
       fromWs.close();
@@ -587,7 +588,7 @@ export default class ConnectionManager {
 
     this._lastServerRaceState = bm.raceState;
     this._onLastServerRaceStateChange();
-    if(this._raceState && this._userProvider) {
+    if(raceState && this._userProvider) {
       switch(bm.type) {
         case BasicMessageType.S2CClientChat:
         {
@@ -621,7 +622,7 @@ export default class ConnectionManager {
 
           }
 
-          this._raceState.absorbNameUpdate(tmNow, bm.payload);
+          raceState.absorbNameUpdate(tmNow, bm.payload);
           break;
         case BasicMessageType.S2CPositionUpdate:
         {
@@ -640,13 +641,13 @@ export default class ConnectionManager {
           })
           
 
-          this._raceState.absorbPositionUpdate(tmNow, bm.timeStamp, bm.payload);
+          raceState.absorbPositionUpdate(tmNow, bm.timeStamp, bm.payload);
           break;
         }
         case BasicMessageType.S2CImageUpdate:
         {
           const imageUpdate:S2CImageUpdate = bm.payload;
-          const user = this._raceState.getUserProvider().getUser(imageUpdate.id);
+          const user = raceState.getUserProvider().getUser(imageUpdate.id);
           this._imageSources.set(imageUpdate.id, imageUpdate.imageBase64);
           if(user) {
             console.log("received an image for ", user.getName());
@@ -671,7 +672,6 @@ export default class ConnectionManager {
       this._ws?.close();
       clearTimeout(this._timeout);
       this._timeout = null;
-      this._raceState = null;
     }
     
   }
@@ -698,7 +698,6 @@ export default class ConnectionManager {
       this._ws.onmessage = () => {};
       this._ws.close();
     }
-    this._raceState = null;
   }
 
   getUserName(userId:number):string {
@@ -732,31 +731,38 @@ export default class ConnectionManager {
     }
   }
 
-  tick() {
-    if(this._ws && this._raceState) {
+  tick(websocket:WebSocket, forRaceState:RaceState) {
+    if(websocket && forRaceState) {
       // ok, we gotta send our game state back to the main server
       
-      const update = new ClientToServerUpdate(this._raceState);
+      const update = new ClientToServerUpdate(forRaceState);
       const wrapper:C2SBasicMessage = {
         type: BasicMessageType.ClientToServerUpdate,
         payload: update,
       };
-      this._ws.send(JSON.stringify(wrapper));
-      this.scheduleNetworkTick();
+
+      //console.log("sending update on ws " + (this._ws as any).id);
+      websocket.send(JSON.stringify(wrapper));
+
+      if(!forRaceState.isOldNews()) {
+        this.scheduleNetworkTick(websocket, forRaceState);
+      } else {
+        console.log("this race is old news");
+      }
     }
   }
 
   getRaceState():RaceState {
-    if(this._raceState) {
-      return this._raceState;
-    } else {
-      throw new Error("We don't have a game state!");
-    }
+    return RaceState._mainRaceState;
   }
 
-  scheduleNetworkTick() {
+  scheduleNetworkTick(websocket:WebSocket, forRaceState:RaceState) {
     this._timeout = setTimeout(() => {
-      this.tick();
+      if(!this._desiresDisconnect) {
+        this.tick(websocket, forRaceState);
+      } else {
+        console.log("they desire a disconnect");
+      }
     }, 250);
   }
 }

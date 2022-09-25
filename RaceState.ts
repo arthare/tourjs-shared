@@ -25,7 +25,7 @@ export class RaceState {
   private _gameId:string;
   private _tmUnfinishedHuman:number = 0;
   private _stopped:boolean = false;
-  private static _mainRaceState:RaceState|null = null;
+  public static _mainRaceState:RaceState|null = null;
 
   constructor(map:RideMap, users:UserProvider, gameId:string) {
     this._map = map;
@@ -47,7 +47,7 @@ export class RaceState {
     if(this._stopped) {
       return;
     }
-    if(typeof window !== 'undefined' && RaceState._mainRaceState !== this) {
+    if(typeof window !== 'undefined' && this.isOldNews()) {
       debugger;
       return;
     }
