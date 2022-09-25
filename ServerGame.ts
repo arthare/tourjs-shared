@@ -296,7 +296,7 @@ export class AINNBrain implements AIBrain {
       // just default to something basic if we don't have our data yet
       return handicap * 1.0;
     }
-    if(this._model) {
+    if(this._model && data.distanceToFinish > 0) {
 
       StatsData.note("AI predictFromRaw");
       const ret = handicap * this._strength * predictFromRawTrainingData(tf, this._model, this._norms, data);
