@@ -577,9 +577,11 @@ export class ServerGame {
     return userIdToUserMap.get(userId);
   }
   private _tick() {
+    StatsData.note("ServerGame::_tick() " + this.getGameId());
     if(this._stopped) {
       return;
     }
+    StatsData.note("ServerGame::_tick() " + this.getGameId() +" - not stopped");
     const tmNow = new Date().getTime();
 
     let thisRaceState:CurrentRaceState|null = null;
@@ -639,6 +641,8 @@ export class ServerGame {
             const sSinceFinish = this.raceState.getSecondsSinceLastNonFinishedHuman(tmNow);
             if(this.raceState.isAllRacersFinished(tmNow) || sSinceFinish >= 30) {
               // ok, absolutely everyone is finished (or it's been 60s since the last human finished), so we _really_ don't need a physics update, and we're definitely post-race
+              console.log("All racers finished (or its been 30sec since last human finisher), so we're stopping this race");
+              this.stop();
               const permanentFinishUpdate = new S2CFinishUpdate(this.userProvider, this._tmRaceStart);
               try{fs.mkdirSync('../finish-data/');}catch(e){}
               
