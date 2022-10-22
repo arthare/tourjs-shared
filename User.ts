@@ -193,6 +193,7 @@ export interface UserInterface {
   getDrafteeCount(tmNow: number): number;
   getLastWattsSaved(): DraftSavings; // how many watts did we save last round?
   isDraftingLocalUser(): boolean; // are we drafting the local player?
+  isDraftingAnyone(): boolean; // are we drafting the local player?
 
   getSecondsAgoToCross(tmNow: number, distance: number): number|null;
   getDisplay(raceState: RaceState | null): UserDisplay;
@@ -542,6 +543,9 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
 
   public isDraftingLocalUser():boolean {
     return !!(this._lastDraftUser && this._lastDraftUser.getUserType() & UserTypeFlags.Local);
+  }
+  public isDraftingAnyone():boolean {
+    return !!this._lastDraftUser;
   }
   public getDrafteeStats():DrafteeStat[] {
     return this._drafteeStats;
