@@ -23,6 +23,7 @@ export enum BasicMessageType {
   S2CImageUpdate,
   S2CClientChat,
   ClientToServerChat,
+  ClientToServerGameUpdate
 }
 
 export enum CurrentRaceState {
@@ -215,7 +216,12 @@ export interface ClientConnectionRequest {
   riderHandicap:number;
   gameId:string;
   bigImageMd5:string|null;
-} 
+}
+export interface ClientToServerGameUpdatePayload {
+  gameId:string;
+  msStartShift:number; // if you want to make the game start 60 seconds later (relative to its current start time)
+  tmStartSet:number; // if you want to make the game start at a specific unix time
+}
 export interface ClientConnectionResponse {
   yourAssignedId:number; // given your name/account combo, here's an id for your rider
   map:ServerMapDescription; // here's the map we're riding on.
