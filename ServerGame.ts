@@ -10,14 +10,8 @@ import { BrainLocation, brainPath, makeTensor, normalizeData, NormData, predictF
 import * as tf from '@tensorflow/tfjs-node';
 import { LayersModel, Sequential, Tensor, Tensor2D } from '@tensorflow/tfjs-node';
 import {v4 as uuidv4} from 'uuid';
-import { dbCreateUserAccount, dbGetUserAccount, dbUpdateAlias, dbUpdateHandicap } from "../index-db";
+import { StatsData } from "./StatsData";
 
-export class StatsData {
-  static counts:{[key:string]:number} = {};
-  public static note(topic:string) {
-    StatsData.counts[topic] = (StatsData.counts[topic] || 0) + 1;
-  };
-}
 export class ServerUser extends User {
   _tmLastNameSent:number;
   _tmLastFinishUpdate:number;

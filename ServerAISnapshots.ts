@@ -1,7 +1,7 @@
 import { LayersModel, Tensor, Tensor2D } from "@tensorflow/tfjs-node";
 import { getAIStrengthBoostForDistance, RaceState } from "./RaceState";
 import { RideMap } from "./RideMap";
-import { StatsData } from "./ServerGame";
+//import { StatsData } from "./ServerGame";
 import { DEFAULT_CDA, DEFAULT_CRR, DEFAULT_GRAVITY, DEFAULT_HANDICAP_POWER, DEFAULT_RHO, DEFAULT_RIDER_MASS, User, UserInterface, UserTypeFlags } from "./User";
 import { assert2 } from "./Utils";
 //import tf from '@tensorflow/tfjs-node';
@@ -660,7 +660,6 @@ export function normalizeData(data:Tensor2D, min:Tensor, max:Tensor) {
   return subMinDiv;
 }
 export function makeTensor(tf:any, arr:number[][]):Tensor2D {
-  StatsData.note("makeTensor");
   return tf.tensor2d(arr, [arr.length, arr[0].length]);
 }
 
