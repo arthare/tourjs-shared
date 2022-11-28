@@ -22,7 +22,7 @@ export const DEFAULT_RHO = 1.225;
 export const DEFAULT_CDA = 0.25;
 export const DEFAULT_HANDICAP_POWER = 300;
 export const DEFAULT_RIDER_MASS = 80;
-const UI_SMOOTH_SECONDS = 1.0;
+const UI_SMOOTH_SECONDS = 10.0;
 
 
 export enum UserTypeFlags {
@@ -55,7 +55,8 @@ class UserDataRecorder implements CadenceRecipient, HrmRecipient {
   private _tmFinish:number = -1;
   private _tmLastPacket:number = -1;
   private _powerHistory:DistanceHistoryElement[] = [];
-
+  protected _hasEverBeenPastMapLength:boolean = false;
+  private _finishRank = -1;
   private _lastHrm = 0;
   private _tmLastHrm = 0;
 
@@ -101,14 +102,25 @@ class UserDataRecorder implements CadenceRecipient, HrmRecipient {
   public getLastPower():number {
     return this._lastPower;
   }
-  setFinishTime(tmNow:number) {
+  setFinishTime(tmNow:number, rank:number) {
     this._tmFinish = tmNow;
+    this._finishRank = rank;
   }
   getRaceTimeSeconds(tmRaceStart:number):number {
     return (this._tmFinish - tmRaceStart) / 1000.0;
   }
   isFinished():boolean {
     return this._tmFinish >= 0;
+  }
+  getFinishRank():number {
+    return this._finishRank;
+  }
+  isProbablyFinished():boolean {
+    if(this.isFinished()) return true;
+    if(this._hasEverBeenPastMapLength) {
+      return true;
+    }
+    return false;
   }
   getMsSinceLastPacket(tmNow:number):number {
     return Math.max(0, tmNow - this._tmLastPacket);
@@ -206,9 +218,11 @@ export interface UserInterface {
   notifyHrm(tmNow: number, hrm: number): void;
   getLastHrm(tmNow: number): number;
   getLastPower(): number;
-  setFinishTime(tmNow: number): void;
+  setFinishTime(tmNow: number, rank:number): void;
   getRaceTimeSeconds(tmRaceStart: number): number;
   isFinished(): boolean;
+  getFinishRank(): number;
+  isProbablyFinished(): boolean;
   getMsSinceLastPacket(tmNow: number): number;
   notePacket(tmNow: number): void;
 }
@@ -454,6 +468,10 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     const lastPosition = this._position;
     const mapLength = map.getLength();
     this._position += Math.min(map.getLength(), this._speed * dtSeconds);
+
+    if(this._position >= map.getLength()) {
+      this._hasEverBeenPastMapLength = true;
+    }
     this._position = Math.min(map.getLength(), this._position);
     this._lastElevation = map.getElevationAtDistance(this._position);
 
@@ -467,7 +485,9 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     }
 
     if(lastPosition < mapLength && this._position >= mapLength) {
-      this.setFinishTime(tmNow);
+      // we just finished!  let's do an unofficial finishing position
+      const usersAhead = otherUsers.filter((user) => user.isFinished());
+      this.setFinishTime(tmNow, usersAhead.length);
     }
 
     if(this._position > 0 && this._position < mapLength) {

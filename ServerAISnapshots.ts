@@ -819,7 +819,7 @@ export async function doNNTrainWithSnapshots(tf:any, rootNameOfBot:string, datas
 
       
       const brainName = `${rootNameOfBot}-${thisScore.score.toFixed(8)}.brain`;
-      await model.save(`file:///braintrain/${brainName}`);
+      await model.save(`file://./braintrain/${brainName}`);
 
       {// put the norm.json so that we can figure out the norms that this brain was trained with
         normData.killCols = killCols;
