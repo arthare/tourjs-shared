@@ -715,6 +715,37 @@ export default class ConnectionManager {
     }
   }
 
+  startRaceSoon(msFromNow:number) {
+    
+    if(this._ws && this._gameId) {
+      const msgSoon:ClientToServerGameUpdatePayload = {
+        gameId: this._gameId,
+        tmStartSet: new Date().getTime() + msFromNow,
+        msStartShift: 0,
+      }
+      const wrapper:C2SBasicMessage = {
+        type: BasicMessageType.ClientToServerGameUpdate,
+        payload: msgSoon,
+      };
+      this._ws.send(JSON.stringify(wrapper));
+    }
+  }
+  delayRaceStart(msToDelay:number) {
+    
+    if(this._ws && this._gameId) {
+      const msgSoon:ClientToServerGameUpdatePayload = {
+        gameId: this._gameId,
+        tmStartSet: 0,
+        msStartShift: msToDelay,
+      }
+      const wrapper:C2SBasicMessage = {
+        type: BasicMessageType.ClientToServerGameUpdate,
+        payload: msgSoon,
+      };
+      this._ws.send(JSON.stringify(wrapper));
+    }
+  }
+
   chat(chat:string) {
 
     if(this._ws && this._userProvider) {
