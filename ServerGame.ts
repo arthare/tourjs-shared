@@ -544,7 +544,7 @@ export class ServerGame {
     const user = this.userProvider.getUser(newId);
     if(user && this._lastRaceStateMode === CurrentRaceState.PostRace) {
       // we are already done this race.  Claim that this user finished now
-      user.setFinishTime(tmNow);
+      user.setFinishTime(tmNow, -1);
       user.setPosition(this.raceState.getMap().getLength());
     }
 
