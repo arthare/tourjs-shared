@@ -583,15 +583,26 @@ export class ServerGame {
 
     // update AI powers
     if(tmNow - this._tmLastAiUpdate > 250) {
-      this.userProvider.getUsers(tmNow).forEach((user:UserInterface) => {
+      const allUsers = this.userProvider.getUsers(tmNow);
+      
+          
+      let allHumansCoasting = allUsers.every((user) => (user.getUserType() & UserTypeFlags.Ai) || (user.getLastPower() <= 0));
+      let humanCount = allUsers.filter((user) => !(user.getUserType() & UserTypeFlags.Ai)).length;
+      const allAisShouldCoast = humanCount >= 2 && allHumansCoasting; // if every human has decided to not pedal, then lets have all the AIs stop too
+      
+      allUsers.forEach((user:UserInterface) => {
         if(user.getUserType() & UserTypeFlags.Ai) {
           const spread = 50;
           const pct = user.getHandicap() / DEFAULT_HANDICAP_POWER;
           let power = pct*user.getHandicap() + Math.random()*spread - spread/2;
   
+
           // let's see if this user has a brain...
           const aiBrain = this._aiBrains.get(user.getId());
-          if(aiBrain) {
+
+          if(allAisShouldCoast) {
+            power = 0;
+          } else if(aiBrain) {
             if(aiBrain.isNN()) {
               const data = takeTrainingSnapshot(tmNow, user as User, this.raceState);
               if(data) {
