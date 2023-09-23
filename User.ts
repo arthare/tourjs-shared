@@ -51,6 +51,7 @@ export interface UserDisplay {
 class UserDataRecorder implements CadenceRecipient, HrmRecipient {
   private _lastPower:number = 0;
   private _tmLastPower:number = 0;
+  private _tmLastNonzeroPower:number = 0;
   private _id:number = -1; // assigned by the server.  Positive when set
   private _tmFinish:number = -1;
   private _tmLastPacket:number = -1;
@@ -83,6 +84,9 @@ class UserDataRecorder implements CadenceRecipient, HrmRecipient {
   public notifyPower(tmNow:number, watts:number):void {
     this._lastPower = watts;
     this._tmLastPower = tmNow;
+    if(watts > 0) {
+      this._tmLastNonzeroPower = tmNow;
+    }
     this._powerHistory.push({tm:tmNow, distance:watts});
   }
   public notifyCadence(tmNow:number, cadence:number):void {
@@ -99,8 +103,12 @@ class UserDataRecorder implements CadenceRecipient, HrmRecipient {
     }
     return 0;
   }
-  public getLastPower():number {
-    return this._lastPower;
+  public getLastPower():LastPowerData {
+    return {
+      power: this._lastPower,
+      tmLastNonzero: this._tmLastNonzeroPower,
+      tmLastUpdate: this._tmLastPower,
+    };
   }
   setFinishTime(tmNow:number, rank:number) {
     this._tmFinish = tmNow;
@@ -170,6 +178,11 @@ export enum HandicapChangeReason {
   UserJoined,
   ServerRehandicap,
 }
+export interface LastPowerData {
+  tmLastNonzero:number;
+  tmLastUpdate:number;
+  power:number;
+}
 export interface UserInterface {
   getName(): string;
   getUserType(): number;
@@ -217,7 +230,7 @@ export interface UserInterface {
   notifyCadence(tmNow: number, cadence: number): void;
   notifyHrm(tmNow: number, hrm: number): void;
   getLastHrm(tmNow: number): number;
-  getLastPower(): number;
+  getLastPower(): LastPowerData;
   setFinishTime(tmNow: number, rank:number): void;
   getRaceTimeSeconds(tmRaceStart: number): number;
   isFinished(): boolean;
@@ -302,7 +315,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
       id:this.getId(),
       distance:this.getDistance(),
       speed:this.getSpeed(),
-      power:this.getLastPower(),
+      power:this.getLastPower().power,
       hrm:this.getLastHrm(tmNow),
     }
   }
@@ -373,7 +386,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
 
     // apply handicapping or other wackiness that the map might be applying
     const fnTransformPower = map.getPowerTransform(this);
-    const transformedPower:number = fnTransformPower(this.getLastPower());
+    const transformedPower:number = fnTransformPower(this.getLastPower().power);
 
     const powerForce = transformedPower / Math.max(this._speed, 0.5);
 
@@ -630,7 +643,7 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     const tmNow = new Date().getTime();
     return {
       name: this._name,
-      lastPower: this.getLastPower().toFixed(0) + 'W',
+      lastPower: this.getLastPower().power.toFixed(0) + 'W',
       distance: formatDisplayDistance(displayDist),
       speed: (this._speed*3.6).toFixed(1) + 'km/h',
       slope: (map && (map.getSlopeAtDistance(this._position)*100).toFixed(1) + '%') || '',

@@ -90,7 +90,7 @@ export class ServerUser extends User {
       
       if(this._pendingTrainingSnapshot) {
         // we've got an old training snapshot that needs our current power filled in, and then needs to get dumped to disk
-        this._pendingTrainingSnapshot.powerNextSecond = this.getLastPower() / this.getHandicap();
+        this._pendingTrainingSnapshot.powerNextSecond = this.getLastPower().power / this.getHandicap();
         fs.appendFile(brainPath(`${this.getName()}-v${this._pendingTrainingSnapshot.version}-${this.getBigImageMd5()}.training`, BrainLocation.ForTraining), JSON.stringify(this._pendingTrainingSnapshot, undefined, '\t') + "\n$$\n", {}, ()=>{});
         this._pendingTrainingSnapshot = null;
       }

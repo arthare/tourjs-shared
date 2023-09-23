@@ -1,7 +1,7 @@
 import { RaceState, UserProvider } from "./RaceState";
 import { HandicapChangeReason, JoulesUsedClass, User, UserInterface, UserTypeFlags } from "./User";
 import { assert2 } from "./Utils";
-import { RideMap, RideMapElevationOnly, RideMapPartial } from "./RideMap";
+import { MapBounds, RideMap, RideMapElevationOnly, RideMapPartial } from "./RideMap";
 import { ServerGame } from "./ServerGame";
 import { RideMapHandicap } from "./RideMapHandicap";
 
@@ -287,7 +287,7 @@ export class ClientToServerUpdate {
     this.gameId = raceState.getGameId();
     this.userId = localGuy.getId();
     assert2(this.userId >= 0, "We can't really tell the server about our user unless we know his id...");
-    this.lastPower = localGuy.getLastPower();
+    this.lastPower = localGuy.getLastPower().power;
 
     const hrm = localGuy.getLastHrm(new Date().getTime());
     
@@ -331,7 +331,7 @@ export function getElevationFromEvenSpacedSamples(meters:number, lengthMeters:nu
 }
 
 // a wrapper class to start translating a ScheduleRacePostRequest into a map we can actually load and ride
-export class SimpleElevationMap extends RideMapPartial {
+export class SimpleElevationMap extends RideMapPartial implements RideMap {
   elevations:number[];
   lengthMeters:number;
   constructor(elevations:number[], lengthMeters:number) {
@@ -350,6 +350,25 @@ export class SimpleElevationMap extends RideMapPartial {
   }
   getLength(): number {
     return this.lengthMeters;
+  }
+  getPowerTransform(who:UserInterface):(power:number)=>number {
+    return (n:number) => n;
+  }
+  getBounds():MapBounds {
+
+    let minElev = 1e30;
+    let maxElev = -1e30;
+    for(var e of this.elevations) {
+      minElev = Math.min(minElev, e);
+      maxElev = Math.max(maxElev, e);
+    }
+
+    return {
+      minElev,
+      maxElev,
+      minDist:0,
+      maxDist:this.lengthMeters,
+    }
   }
 }
 

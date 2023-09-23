@@ -5,7 +5,7 @@ import { User, UserInterface } from "./User";
 class WorkoutSample implements IWorkoutSample {
   constructor(tmNow:number, user:UserInterface) {
     this.tm = tmNow;
-    this.power = user.getLastPower();
+    this.power = user.getLastPower().power;
     this.distance = user.getDistance();
     this.speedMetersPerSec = user.getSpeed();
     this.hrm = user.getLastHrm(tmNow);
