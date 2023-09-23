@@ -539,7 +539,7 @@ export class ServerGame {
   }
   public addUser(tmNow:number, ccr:ClientConnectionRequest, wsConnection:WebSocket|null):number {
     // they've added a user.  So we want to perhaps manage the game start to tip it towards starting soon.
-    let newId = this.userProvider.addUser(ccr, wsConnection, 0, this.raceState);
+    let newId = this.userProvider.addUser(ccr, wsConnection, UserTypeFlags.None, this.raceState);
 
     const user = this.userProvider.getUser(newId);
     if(user && this._lastRaceStateMode === CurrentRaceState.PostRace) {
