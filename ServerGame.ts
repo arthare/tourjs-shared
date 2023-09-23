@@ -586,7 +586,7 @@ export class ServerGame {
       const allUsers = this.userProvider.getUsers(tmNow);
       
           
-      let allHumansCoasting = allUsers.every((user) => (user.getUserType() & UserTypeFlags.Ai) || (user.getLastPower() <= 0));
+      let allHumansCoasting = allUsers.every((user) => (user.getUserType() & UserTypeFlags.Ai) || (user.getLastPower().power <= 0));
       let humanCount = allUsers.filter((user) => !(user.getUserType() & UserTypeFlags.Ai)).length;
       const allAisShouldCoast = humanCount >= 2 && allHumansCoasting; // if every human has decided to not pedal, then lets have all the AIs stop too
       
