@@ -26,6 +26,7 @@ const UI_SMOOTH_SECONDS = 10.0;
 
 
 export enum UserTypeFlags {
+  None = 0,
   Local = 1,
   Remote = 2,
   Ai = 4,

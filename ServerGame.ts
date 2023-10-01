@@ -180,6 +180,8 @@ export class ServerUser extends User {
           StatsData.note("User [human] update FTP");
           console.log("revising " + this.getName() + "'s FTP to " + estFTP.toFixed(1));
           this.setHandicap(estFTP, HandicapChangeReason.ServerRehandicap);
+        } else if(estFTP >= this.getHandicap()*0.98) {
+          console.log(`${this.getName()} is getting close to an FTP bump`);
         }
       }
 
@@ -209,15 +211,19 @@ export class ServerUserProvider implements UserProvider {
   addUser(ccr:ClientConnectionRequest, wsConnection:WebSocket|null, userTypeFlags:UserTypeFlags, raceState:RaceState):number {
 
     if(!userTypeFlags) {
-      userTypeFlags = 0;
+      userTypeFlags = UserTypeFlags.None;
     }
 
     let newId = userIdCounter++;
     const user = new ServerUser(ccr.sub, ccr.riderName, DEFAULT_RIDER_MASS, ccr.riderHandicap, UserTypeFlags.Remote | userTypeFlags, wsConnection, raceState);
+
+    let cBotsAlready = this.users.filter((user) => user.getUserType() & (UserTypeFlags.Ai | UserTypeFlags.Bot)).length;
     if(user.getUserType() & (UserTypeFlags.Ai | UserTypeFlags.Bot)) {
       assert2(wsConnection === null);
+      user.setDistance(-2.5 * cBotsAlready);
     } else {
       assert2(wsConnection !== null);
+      user.setDistance(0);
     }
 
     if(ccr.imageBase64) {
