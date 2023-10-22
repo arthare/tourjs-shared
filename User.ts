@@ -692,8 +692,11 @@ export class User extends UserDataRecorder implements SlopeSource, UserInterface
     }
 
     // keep track of how far we had to move this user.  we can blend in this adjustment over the next couple frames so their client doesn't look all herky jerky
-    const delta = update.distance - this.getDistanceForUi(tmNow); // how far off was our client estimate?
+    let delta = update.distance - this.getDistanceForUi(tmNow); // how far off was our client estimate?
     
+    if(Math.abs(delta) >= 25) {
+      delta = Math.max(-25,Math.min(25,delta));
+    }
     this._smoothDelta = delta;
     this._tmSmoothDelta = tmNow;
 
