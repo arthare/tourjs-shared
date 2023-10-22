@@ -14,7 +14,6 @@ export interface HillStats {
   endDist:number;
   startElev:number;
   endElev:number;
-  expectedSeconds:number;
   id:number;
 }
 
@@ -91,7 +90,6 @@ export abstract class RideMapPartial implements RideMapElevationOnly {
       startElev: elevAtMeters,
       endElev: elevAtMeters,
       id:this.ixNextMapId,
-      expectedSeconds:0,
     }
 
     // run backwards to find the start of the hill
@@ -123,9 +121,6 @@ export abstract class RideMapPartial implements RideMapElevationOnly {
       lastElev = elevAtCheck;
     }
 
-    if(ret) {
-      ret.expectedSeconds = calculateExpectedHillSeconds(ret);
-    }
     console.log(this.id, "putting ret into cache ", ret);
     this.mapStatsCache.push(JSON.parse(JSON.stringify(ret)));
     return ret.startDist !== ret.endDist ? ret : null;
